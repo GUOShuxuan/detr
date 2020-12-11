@@ -1,9 +1,4 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-"""
-Modify the main.py to the nvdata:
-1. build_dataset: get the nvdata for training (start from 50K) and evaluate
-2. change the evaluate function to evaluate on nvdata
-"""
 import argparse
 import datetime
 import json
@@ -18,13 +13,10 @@ from torch.utils.data import DataLoader, DistributedSampler, Subset
 
 import datasets
 import util.misc as utils
-# from datasets import get_coco_api_from_dataset
-from sandbox.williamz.detr.engine import train_one_epoch
-from sandbox.williamz.detr.models import build_model
+from datasets import build_dataset, get_coco_api_from_dataset
+from engine_coco import evaluate, train_one_epoch
+from models import build_model
 from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
-from sandbox.williamz.detr.eval_dlav_metrics import evaluate
-
-import IPython
 
 
 def get_args_parser():
@@ -89,12 +81,8 @@ def get_args_parser():
                         help="Relative classification weight of the no-object class")
 
     # dataset parameters
-    parser.add_argument('--dataset_file', default='nvdata')
-    # parser.add_argument('--coco_path', type=str)
-    parser.add_argument('--dataset_root_sql', type=str)
-    parser.add_argument('--dataset_root_img', type=str)
-    parser.add_argument('--dataset_root_test', type=str) 
-    parser.add_argument('--root_indices', type=str)
+    parser.add_argument('--dataset_file', default='coco')
+    parser.add_argument('--coco_path', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
 
@@ -107,7 +95,7 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--num_workers', default=2, type=int)
+    parser.add_argument('--num_workers', default=0, type=int) #2
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
@@ -131,9 +119,7 @@ def main(args):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    # IPython.embed()
-    # IPython.embed()
-    # os.system("sudo chmod -R 777 /home/shuxuang/.cache/")
+
     model, criterion, postprocessors = build_model(args) # use the same model as detr paper on coco
     model.to(device)
 
@@ -158,26 +144,17 @@ def main(args):
     # dataset_train = build_dataset(image_set='train', args=args)
     # dataset_val = build_dataset(image_set='val', args=args)
     # modify the dataset from coco to nvdata
-    # home_dir = os.environ["HOME"]
-    # dataset_train_ = build_nvdataset(dataset_root=[
-    #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
-    #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                                 mode='train')
-    # dataset_val = build_nvdataset(dataset_root=[
-    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
-    #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                               mode='test')
-    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
-
-    dataset_train_ = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
-                                     mode='train')
-    dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
+    dataset_train_ = build_nvdataset(dataset_root=[
+                                        os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
+                                        os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+                                    mode='train')
+    dataset_val = build_nvdataset(dataset_root=[
+                                    os.path.join(os.environ["HOME"],'datasets/test'), 
+                                    os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
                                   mode='test')
-    indices_50k =np.load(os.path.join(args.root_indices))
-    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
+    indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
 
     dataset_train = Subset(dataset_train_, indices_50k)
-    # IPython.embed()
 
     if args.distributed:
         sampler_train = DistributedSampler(dataset_train)
@@ -194,16 +171,13 @@ def main(args):
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
 
-    # if args.dataset_file == "coco_panoptic":
-    #     # We also evaluate AP during panoptic training, on original coco DS
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # elif args.dataset_file == "nvdata":
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # else:
-    #     base_ds = get_coco_api_from_dataset(dataset_val)
-
+    if args.dataset_file == "coco_panoptic":
+        # We also evaluate AP during panoptic training, on original coco DS
+        coco_val = datasets.coco.build("val", args)
+        base_ds = get_coco_api_from_dataset(coco_val)
+    else:
+        base_ds = get_coco_api_from_dataset(dataset_val)
+    import ipdb; ipdb.set_trace()
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
         model_without_ddp.detr.load_state_dict(checkpoint['model'])
@@ -221,15 +195,12 @@ def main(args):
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
 
-    # if args.eval:
-    #     test_stats, coco_evaluator = evaluate_nvdata(model, criterion, postprocessors,
-    #                                           data_loader_val, base_ds, device, args.output_dir)
-    #     if args.output_dir:
-    #         utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
-    #     return
-
-    # if args.eval:
-    #     evaluate(model, dataset_val, postprocessors, device)
+    if args.eval:
+        test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
+                                              data_loader_val, base_ds, device, args.output_dir)
+        if args.output_dir:
+            utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
+        return
 
     print("Start training")
     start_time = time.time()
@@ -254,16 +225,12 @@ def main(args):
                     'args': args,
                 }, checkpoint_path)
 
-        # test_stats, coco_evaluator = evaluate_nvdata(
-        #     model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
-        # )
-
-        # log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-        #              **{f'test_{k}': v for k, v in test_stats.items()},
-        #              'epoch': epoch,
-        #              'n_parameters': n_parameters}
+        test_stats, coco_evaluator = evaluate(
+            model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
+        )
 
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+                     **{f'test_{k}': v for k, v in test_stats.items()},
                      'epoch': epoch,
                      'n_parameters': n_parameters}
 
@@ -272,15 +239,15 @@ def main(args):
                 f.write(json.dumps(log_stats) + "\n")
 
             # for evaluation logs
-            # if coco_evaluator is not None:
-            #     (output_dir / 'eval').mkdir(exist_ok=True)
-            #     if "bbox" in coco_evaluator.coco_eval:
-            #         filenames = ['latest.pth']
-            #         if epoch % 50 == 0:
-            #             filenames.append(f'{epoch:03}.pth')
-            #         for name in filenames:
-            #             torch.save(coco_evaluator.coco_eval["bbox"].eval,
-            #                        output_dir / "eval" / name)
+            if coco_evaluator is not None:
+                (output_dir / 'eval').mkdir(exist_ok=True)
+                if "bbox" in coco_evaluator.coco_eval:
+                    filenames = ['latest.pth']
+                    if epoch % 50 == 0:
+                        filenames.append(f'{epoch:03}.pth')
+                    for name in filenames:
+                        torch.save(coco_evaluator.coco_eval["bbox"].eval,
+                                   output_dir / "eval" / name)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
@@ -294,10 +261,4 @@ if __name__ == '__main__':
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)
 
-
-# dazel run //detr/workflows:train_detr -- -e maglev --remote_registry ngc
-# dazel run //sandbox/williamz/detr:main
-
-# run on: CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:main -- --batch_size 4 --dilation --output_dir /home/shuxuang/experiments/detr_dc5_50k_bs4/
-
-# dazel run //sandbox/williamz/detr/workflows:train_detr -- -e maglev --remote_registry ngc
+# python main_old.py --coco_path /home/shuxuang/dataset/coco2017

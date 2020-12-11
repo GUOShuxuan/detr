@@ -22,7 +22,10 @@ import util.misc as utils
 from sandbox.williamz.detr.engine import train_one_epoch
 from sandbox.williamz.detr.models import build_model
 from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
-from sandbox.williamz.detr.eval_dlav_metrics import evaluate
+from sandbox.williamz.detr.eval_dlav_vis import vis_bboxes
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 
 import IPython
 
@@ -115,6 +118,95 @@ def get_args_parser():
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
     return parser
 
+def read_log(logfile):
+    loss_dict = {}
+    with open(logfile) as f:
+        lines = f.readlines()
+    nline = 0
+    for line in lines:
+        line_dict = json.loads(line)
+        for key in line_dict.keys():
+            if nline == 0:
+                loss_dict.update({key: []})
+            loss_dict[key].append(line_dict[key])
+        nline += 1
+    # IPython.embed()
+    plt.figure(figsize=(5, 10))
+    plt.rcParams.update({'font.size': 6})
+    fig, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plt.subplots(2, 3)
+    fig.suptitle('DETR Baseline with 100 queries', fontsize=10)
+    fig.subplots_adjust(top=0.90, wspace=0.25, hspace=0.25) # top=0.7
+    # fig, axes = plt.subplots(nrows=2, ncols=2)
+    # ax0, ax1, ax2, ax3 = axes.flatten()
+    for key in loss_dict.keys():
+        if key.find('unscaled') == -1:
+            if key.find('class_error') != -1:
+                ax1.plot(loss_dict["epoch"], loss_dict[key])
+            elif key.find('loss_bbox') != -1:
+                ax4.plot(loss_dict["epoch"], loss_dict[key], label=key)
+            elif key.find('loss_ce') != -1:
+                ax5.plot(loss_dict["epoch"], loss_dict[key], label=key)
+            elif key.find('loss_giou') != -1:
+                ax6.plot(loss_dict["epoch"], loss_dict[key], label=key)
+            elif key.find('loss') != -1:
+                ax2.plot(loss_dict["epoch"], loss_dict[key])
+        elif key.find('cardinality_error') != -1:
+            ax3.plot(loss_dict["epoch"], loss_dict[key], label=key)
+        
+    ax1.set_title('class error', fontsize=8)
+    ax2.set_title('loss', fontsize=8)
+    ax3.set_title('cardinality_error', fontsize=8)
+    ax4.set_title('loss_bbox', fontsize=8)
+    ax5.set_title('loss_ce', fontsize=8)
+    ax6.set_title('loss_giou', fontsize=8)
+    ax3.legend(prop={'size': 6})
+    ax4.legend(prop={'size': 6})
+    ax5.legend(prop={'size': 6})
+    ax6.legend(prop={'size': 6})
+    
+    # fig.tight_layout()
+    plt.show()
+    plt.savefig("/home/shuxuang/experiments/demos/detr_losses/baseline_q100.png", dpi=300)
+
+    # epoch-train-class-error, epoch-train-loss
+    # epoch-train-loss_boxes, ce, giou * 5, train_cardinality_error*5
+    
+
+def accumulate_bboxes_numbers(dataset):
+    """Main function."""
+    # The +1 for num_classes is for the background class.
+    # This line is needed because the model is typically trained with
+    # torch.nn.DataParallel, which prefixes state keys with "module".
+    # TODO(@williamz): Write a util that allows loading the state dict
+    # regardless of whether the model has been wrapped by DataParallel. 
+    # n_50 = []
+    # n_100 = []
+    # n_150 = []
+    # n_200 = []
+    # n_larger_200 = []
+
+    ns_list = [[], [], [], [], []]  
+    # ns_list[3]: [38223, 38224]
+    # ns_list[2]: [36614, 36615, 38177, 38178, 38221, 38222, 38225, 38323, 38325, 39362, 43032, 47159, 47160, 47161, 47162, 47163, 47165]
+    # ns_list[1][::200]: [524, 5591, 9440, 11904, 13810, 16593, 38193, 42916, 43602, 45248, 46297, 47572, 48546, 49084]
+    # ns_list[0][::4000]: [0, 4127, 8296, 12651, 17021, 21053, 25069, 29096, 33117, 37190, 41259, 45948]
+    ns = [0, 0, 0, 0, 0] # test: [46988, 2777, 17, 2, 0]
+
+    for i in range(len(dataset)):  # need to implement returning the length of the dataset #len(dataset)
+
+        _, _, ori_target, _ = dataset.pull_item_vis(i)
+        # IPython.embed()
+        if i%1000 == 0:
+            print("Processing Image %d out of %d" % (i, len(dataset)))
+        index = ori_target.shape[0] // 50
+        ns_list[index].append(i) 
+        ns[index] += 1
+    
+    # IPython.embed()  
+    print(ns)
+    with open('/home/shuxuang/experiments/demos/data/test/n_objects.json', 'w') as f:
+        json.dump(ns_list, f)
+
 
 def main(args):
     utils.init_distributed_mode(args)
@@ -133,7 +225,7 @@ def main(args):
     random.seed(seed)
     # IPython.embed()
     # IPython.embed()
-    # os.system("sudo chmod -R 777 /home/shuxuang/.cache/")
+    os.system("sudo chmod -R 777 /home/shuxuang/.cache/")
     model, criterion, postprocessors = build_model(args) # use the same model as detr paper on coco
     model.to(device)
 
@@ -144,148 +236,52 @@ def main(args):
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
-    param_dicts = [
-        {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
-        {
-            "params": [p for n, p in model_without_ddp.named_parameters() if "backbone" in n and p.requires_grad],
-            "lr": args.lr_backbone,
-        },
-    ]
-    optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
-                                  weight_decay=args.weight_decay)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
 
-    # dataset_train = build_dataset(image_set='train', args=args)
-    # dataset_val = build_dataset(image_set='val', args=args)
-    # modify the dataset from coco to nvdata
-    # home_dir = os.environ["HOME"]
+    dataset_val = build_nvdataset(dataset_root=[
+                                    os.path.join(os.environ["HOME"],'datasets/test'), 
+                                    os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+                                  mode='test')
+
+    print("Validation samples: %d"%(len(dataset_val)))
+    # IPython.embed()
+    # compute how many boxes in the test dataset for each image
+    # accumulate_bboxes_numbers(dataset_val)
     # dataset_train_ = build_nvdataset(dataset_root=[
     #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
     #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
     #                                 mode='train')
-    # dataset_val = build_nvdataset(dataset_root=[
-    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
-    #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                               mode='test')
+
     # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
+    # dataset_train = Subset(dataset_train_, indices_50k)
+    # print(len(dataset_train_))
+    # print(len(dataset_val))
 
-    dataset_train_ = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
-                                     mode='train')
-    dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
-                                  mode='test')
-    indices_50k =np.load(os.path.join(args.root_indices))
-    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
-
-    dataset_train = Subset(dataset_train_, indices_50k)
-    # IPython.embed()
-
-    if args.distributed:
-        sampler_train = DistributedSampler(dataset_train)
-        sampler_val = DistributedSampler(dataset_val, shuffle=False)
-    else:
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
-
-    batch_sampler_train = torch.utils.data.BatchSampler(
-        sampler_train, args.batch_size, drop_last=True)
-
-    data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
-                                   collate_fn=utils.collate_fn, num_workers=args.num_workers)
-    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
-
-    # if args.dataset_file == "coco_panoptic":
-    #     # We also evaluate AP during panoptic training, on original coco DS
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # elif args.dataset_file == "nvdata":
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # else:
-    #     base_ds = get_coco_api_from_dataset(dataset_val)
 
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
         model_without_ddp.detr.load_state_dict(checkpoint['model'])
 
     output_dir = Path(args.output_dir)
+    # args.resume = os.path.join(os.environ["HOME"], 'datasets/exps_detr_base/checkpoint0299.pth')
+    # args.resume = '/home/shuxuang/datasets/exps_detr_base/checkpoint0299.pth'
+    log_path = args.resume
+    log = os.path.join(args.resume, 'log.txt')
+    # read_log(log) 
+    # IPython.embed()
+    args.resume = os.path.join(args.resume, 'checkpoint.pth')
+    print(args.resume)
     if args.resume:
         if args.resume.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
                 args.resume, map_location='cpu', check_hash=True)
         else:
+            print('Loading model: %s'%args.resume)
             checkpoint = torch.load(args.resume, map_location='cpu')
         model_without_ddp.load_state_dict(checkpoint['model'])
-        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-            args.start_epoch = checkpoint['epoch'] + 1
 
-    # if args.eval:
-    #     test_stats, coco_evaluator = evaluate_nvdata(model, criterion, postprocessors,
-    #                                           data_loader_val, base_ds, device, args.output_dir)
-    #     if args.output_dir:
-    #         utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
-    #     return
-
-    # if args.eval:
-    #     evaluate(model, dataset_val, postprocessors, device)
-
-    print("Start training")
-    start_time = time.time()
-    for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            sampler_train.set_epoch(epoch)
-        train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm)
-        lr_scheduler.step()
-        if args.output_dir:
-            checkpoint_paths = [output_dir / 'checkpoint.pth']
-            # extra checkpoint before LR drop and every 100 epochs
-            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 100 == 0:
-                checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
-            for checkpoint_path in checkpoint_paths:
-                utils.save_on_master({
-                    'model': model_without_ddp.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'lr_scheduler': lr_scheduler.state_dict(),
-                    'epoch': epoch,
-                    'args': args,
-                }, checkpoint_path)
-
-        # test_stats, coco_evaluator = evaluate_nvdata(
-        #     model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
-        # )
-
-        # log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-        #              **{f'test_{k}': v for k, v in test_stats.items()},
-        #              'epoch': epoch,
-        #              'n_parameters': n_parameters}
-
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                     'epoch': epoch,
-                     'n_parameters': n_parameters}
-
-        if args.output_dir and utils.is_main_process():
-            with (output_dir / "log.txt").open("a") as f:
-                f.write(json.dumps(log_stats) + "\n")
-
-            # for evaluation logs
-            # if coco_evaluator is not None:
-            #     (output_dir / 'eval').mkdir(exist_ok=True)
-            #     if "bbox" in coco_evaluator.coco_eval:
-            #         filenames = ['latest.pth']
-            #         if epoch % 50 == 0:
-            #             filenames.append(f'{epoch:03}.pth')
-            #         for name in filenames:
-            #             torch.save(coco_evaluator.coco_eval["bbox"].eval,
-            #                        output_dir / "eval" / name)
-
-    total_time = time.time() - start_time
-    total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-    print('Training time {}'.format(total_time_str))
-
+    if args.eval:
+        vis_bboxes(model, dataset_val, postprocessors, device)
+    return model, dataset_val, postprocessors, device
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script', parents=[get_args_parser()])
@@ -295,9 +291,10 @@ if __name__ == '__main__':
     main(args)
 
 
-# dazel run //detr/workflows:train_detr -- -e maglev --remote_registry ngc
-# dazel run //sandbox/williamz/detr:main
+# CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:eval_vis -- --eval --resume /home/shuxuang/experiments/detr_results/20201207/baseline_100
 
-# run on: CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:main -- --batch_size 4 --dilation --output_dir /home/shuxuang/experiments/detr_dc5_50k_bs4/
-
-# dazel run //sandbox/williamz/detr/workflows:train_detr -- -e maglev --remote_registry ngc
+# CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:eval_vis -- --eval --resume /home/shuxuang/experiments/detr_results/20201207/baseline_100
+# If change the resume path to the model, then change 
+#  - the title of the loss figure, 
+#  - the name of the saved loss figure file 
+#  - the name of samples in eval_dlav_vis.

@@ -138,6 +138,67 @@ def main(args):
     model.to(device)
 
     model_without_ddp = model
+    
+
+    # dataset_train = build_dataset(image_set='train', args=args)
+    # dataset_val = build_dataset(image_set='val', args=args)
+    # modify the dataset from coco to nvdata
+    # home_dir = os.environ["HOME"]
+    # on local
+    # dataset_train_ = build_nvdataset(dataset_root=[
+    #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
+    #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+    #                                 mode='train')
+    # dataset_val = build_nvdataset(dataset_root=[
+    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
+    #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+    #                               mode='test')
+    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
+    # on maglev
+    dataset_train_ = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
+                                     mode='train')
+    dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
+                                  mode='test')
+    indices_50k =np.load(os.path.join(args.root_indices))
+
+    dataset_train = Subset(dataset_train_, indices_50k)
+    print("Training samples: %d"%(len(dataset_train)))
+    # IPython.embed()
+
+    if args.distributed:
+        sampler_train = DistributedSampler(dataset_train)
+        # sampler_val = DistributedSampler(dataset_val, shuffle=False)
+    else:
+        sampler_train = torch.utils.data.RandomSampler(dataset_train)
+        # sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+
+    batch_sampler_train = torch.utils.data.BatchSampler(
+        sampler_train, args.batch_size, drop_last=True)
+
+    data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
+                                   collate_fn=utils.collate_fn, num_workers=args.num_workers)
+    # data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
+    #                              drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+
+    if args.frozen_weights is not None:
+        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
+        model_without_ddp.detr.load_state_dict(checkpoint['model'])
+
+    output_dir = Path(args.output_dir)
+    if args.resume:
+        if args.resume.startswith('https'):
+            print("Loading pretrained model on coco")
+            checkpoint = torch.hub.load_state_dict_from_url(
+                args.resume, map_location='cpu', check_hash=True)
+            # IPython.embed()
+        else:
+            checkpoint = torch.load(args.resume, map_location='cpu')
+        model_without_ddp.class_embed= torch.nn.Linear(256, 91 + 1)
+        model_without_ddp.load_state_dict(checkpoint['model'])
+        model_without_ddp.class_embed= torch.nn.Linear(256, 11)
+
+    model.to(device)
+    
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_without_ddp = model.module
@@ -154,82 +215,9 @@ def main(args):
     optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                   weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
-
-    # dataset_train = build_dataset(image_set='train', args=args)
-    # dataset_val = build_dataset(image_set='val', args=args)
-    # modify the dataset from coco to nvdata
-    # home_dir = os.environ["HOME"]
-    # dataset_train_ = build_nvdataset(dataset_root=[
-    #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
-    #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                                 mode='train')
-    # dataset_val = build_nvdataset(dataset_root=[
-    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
-    #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                               mode='test')
-    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
-
-    dataset_train_ = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
-                                     mode='train')
-    dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
-                                  mode='test')
-    indices_50k =np.load(os.path.join(args.root_indices))
-    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
-
-    dataset_train = Subset(dataset_train_, indices_50k)
-    # IPython.embed()
-
-    if args.distributed:
-        sampler_train = DistributedSampler(dataset_train)
-        sampler_val = DistributedSampler(dataset_val, shuffle=False)
-    else:
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
-
-    batch_sampler_train = torch.utils.data.BatchSampler(
-        sampler_train, args.batch_size, drop_last=True)
-
-    data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
-                                   collate_fn=utils.collate_fn, num_workers=args.num_workers)
-    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
-
-    # if args.dataset_file == "coco_panoptic":
-    #     # We also evaluate AP during panoptic training, on original coco DS
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # elif args.dataset_file == "nvdata":
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # else:
-    #     base_ds = get_coco_api_from_dataset(dataset_val)
-
-    if args.frozen_weights is not None:
-        checkpoint = torch.load(args.frozen_weights, map_location='cpu')
-        model_without_ddp.detr.load_state_dict(checkpoint['model'])
-
-    output_dir = Path(args.output_dir)
-    if args.resume:
-        if args.resume.startswith('https'):
-            checkpoint = torch.hub.load_state_dict_from_url(
-                args.resume, map_location='cpu', check_hash=True)
-        else:
-            checkpoint = torch.load(args.resume, map_location='cpu')
-        model_without_ddp.load_state_dict(checkpoint['model'])
-        if not args.eval and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
-            args.start_epoch = checkpoint['epoch'] + 1
-
-    # if args.eval:
-    #     test_stats, coco_evaluator = evaluate_nvdata(model, criterion, postprocessors,
-    #                                           data_loader_val, base_ds, device, args.output_dir)
-    #     if args.output_dir:
-    #         utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
-    #     return
-
-    # if args.eval:
-    #     evaluate(model, dataset_val, postprocessors, device)
+    
+    if args.eval:
+        evaluate(model, dataset_val, postprocessors, device)
 
     print("Start training")
     start_time = time.time()
@@ -253,7 +241,8 @@ def main(args):
                     'epoch': epoch,
                     'args': args,
                 }, checkpoint_path)
-
+        if epoch==0 or (epoch + 1) % 25 ==0:
+            evaluate(model, dataset_val, postprocessors, device, output_dir)
         # test_stats, coco_evaluator = evaluate_nvdata(
         #     model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
         # )
@@ -295,9 +284,9 @@ if __name__ == '__main__':
     main(args)
 
 
-# dazel run //detr/workflows:train_detr -- -e maglev --remote_registry ngc
-# dazel run //sandbox/williamz/detr:main
+# CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:train_with_eval  -- --eval
 
-# run on: CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:main -- --batch_size 4 --dilation --output_dir /home/shuxuang/experiments/detr_dc5_50k_bs4/
+# test:
+# CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:train_with_eval -- --eval --resume /home/shuxuang/experiments/detr_50k_1gpus_bs2/checkpoint.pth
 
-# dazel run //sandbox/williamz/detr/workflows:train_detr -- -e maglev --remote_registry ngc
+# dazel run //sandbox/williamz/detr:train_with_eval_init -- --resume https://dl.fbaipublicfiles.com/detr/detr-r50-e632da11.pth

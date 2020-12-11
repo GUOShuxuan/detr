@@ -286,6 +286,39 @@ class PostProcess(nn.Module):
         return results
 
 
+# class PostProcess_mAP100(nn.Module):
+#     """ This module converts the model's output into the format expected by the coco api"""
+    #   "Use this to turn the precessed targets to the predictions for testing mAP as 100 on evaluation"
+#     @torch.no_grad()
+#     def forward(self, outputs, target_sizes):
+#         """ Perform the computation
+#         Parameters:
+#             outputs: raw outputs of the model
+#             target_sizes: tensor of dimension [batch_size x 2] containing the size of each images of the batch
+#                           For evaluation, this must be the original image size (before any data augmentation)
+#                           For visualization, this should be the image size after data augment, but before padding
+#         """
+#         labels, out_bbox = outputs['labels'].view(1, -1), outputs['boxes']
+
+#         assert len(labels) == len(target_sizes)
+#         assert target_sizes.shape[1] == 2
+
+#         # prob = F.softmax(out_logits, -1)
+#         scores = torch.tensor((1, labels.size(1))).fill_(1.)
+#         # scores, labels = prob[..., :-1].max(-1)
+
+#         # convert to [x0, y0, x1, y1] format
+#         boxes = box_ops.box_cxcywh_to_xyxy(out_bbox)
+#         # and from relative [0, 1] to absolute [0, height] coordinates
+#         img_h, img_w = target_sizes.unbind(1)
+#         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
+#         boxes = boxes * scale_fct[:, None, :]
+
+#         results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
+
+#         return results
+
+
 class MLP(nn.Module):
     """ Very simple multi-layer perceptron (also called FFN)"""
 
@@ -310,11 +343,14 @@ def build(args):
     # you should pass `num_classes` to be 2 (max_obj_id + 1).
     # For more details on this, check the following discussion
     # https://github.com/facebookresearch/detr/issues/108#issuecomment-650269223
-    num_classes = 20 if args.dataset_file != 'coco' else 91
-    if args.dataset_file == "coco_panoptic":
-        # for panoptic, we just add a num_classes that is large enough to hold
-        # max_obj_id + 1, but the exact value doesn't really matter
-        num_classes = 250
+    # num_classes = 20 if args.dataset_file != 'coco' else 91
+    # if args.dataset_file == "coco_panoptic":
+    #     # for panoptic, we just add a num_classes that is large enough to hold
+    #     # max_obj_id + 1, but the exact value doesn't really matter
+    #     num_classes = 250
+    if args.dataset_file == "nvdata":
+        num_classes = 10
+    print("%s data has %d foreground classes"%(args.dataset_file, num_classes))
     device = torch.device(args.device)
 
     backbone = build_backbone(args)

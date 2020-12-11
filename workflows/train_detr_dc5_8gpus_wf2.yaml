@@ -1,0 +1,71 @@
+version: 2
+workerPools:
+# - 
+- name: detr-train 
+  workers: 32
+  gpu: "8"
+  cpu: "10"
+  mem: "256Gi"
+  # idleTimeoutSeconds: 120
+  nodeConstraints:
+    required:
+      nodeType: dgx1v.32gb.norm
+
+
+    
+tasks:
+- name: detr-dc5-train-16gpus-bs1
+  local_image: bazel/sandbox/williamz/detr/docker:image
+  env:
+    # MAGLEV_MULTIGPU_MODE: none
+  # gpus: 8
+  inputs:
+  - volume:
+      name: split-outputs
+      version: 8493af65-a8ff-5489-b876-d2695b855014
+    prefix: /drivenet_1
+  - volume:
+      name: d3l-detection-f-train
+      version: 2020-03-10-16-13-7945
+    prefix: /drivenet_2
+  - volume:
+      name: train-outputs
+      version: de4ff57e-3a95-44d1-bc06-a53be35ef8be
+    prefix: /labeled_dir
+  - volume:
+      name: detection-f-US-KPI
+      version: 2020-06-03-14-33-5dd3
+    prefix: /dataset
+  command: /bin/bash 
+  args: [-euxo, pipefail, -c, "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/train_with_eval
+    --dataset_root_sql {{input}}/drivenet_1
+    --dataset_root_img {{input}}/drivenet_2
+    --dataset_root_test {{input}}/dataset
+    --dilation
+    --output_dir {{output}}/out
+    --root_indices {{input}}/labeled_dir/labeled_sets/id_1_criterion_Max_SSD_num_labels_50000.npy
+    --batch_size 1"]
+  # command: python 
+  # args: [-m, torch.distributed.launch, --nproc_per_node=8, --use_env=sandbox/williamz/detr/main,
+  #   --dataset_root_sql={{input}}/drivenet_1,
+  #   --dataset_root_img={{input}}/drivenet_2,
+  #   --dataset_root_test={{input}}/dataset,
+  #   --dilation,
+  #   --output_dir={{output}}/out,
+  #   --root_indices={{input}}/labeled_dir/labeled_sets/id_1_criterion_Max_SSD_num_labels_50000.npy,
+  #   --batch_size=2]
+  group: all
+  workerPool: detr-train 
+  # --output_dir {{output}}/out
+  # secrets:
+  # - name: creds
+  # outputs:
+  #   - volume:
+  #       name: train-outputs
+  #     prefix: /out
+
+
+
+# dazel run //sandbox/williamz/detr/workflows:train_detr_dc5_8gpus_wf2 -- -e maglev --remote_registry ngc -- --wf2
+
+# dazel run //sandbox/williamz/detr/workflows:train_detr_dc5_8gpus_wf2 -- -e maglev --remote_registry ngc -- --wf2 --multi_gpu_mode none

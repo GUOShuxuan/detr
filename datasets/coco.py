@@ -21,12 +21,21 @@ class CocoDetection(torchvision.datasets.CocoDetection):
         self.prepare = ConvertCocoPolysToMask(return_masks)
 
     def __getitem__(self, idx):
+        import ipdb; ipdb.set_trace()
         img, target = super(CocoDetection, self).__getitem__(idx)
         image_id = self.ids[idx]
         target = {'image_id': image_id, 'annotations': target}
         img, target = self.prepare(img, target)
+        # img: PIL.Image.Image image mode=RGB size=433x640
+        # target: {'boxes': tensor n*4, 'labels': n, 'image_id', 'area':,'iscrowd':,
+        # 'orig_size':, 'size'}
+        # boxes: [229.0800, 157.4800, 256.2800, 258.7700]
         if self._transforms is not None:
             img, target = self._transforms(img, target)
+        # img: tensor 3*w*h
+        # target: {'boxes': tensor n*4, 'labels': n, 'image_id', 'area':,'iscrowd':,
+        # 'orig_size':, 'size': changed}
+        # box: [0.5605, 0.3252, 0.0628, 0.1583], 
         return img, target
 
 

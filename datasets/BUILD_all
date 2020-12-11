@@ -1,0 +1,101 @@
+# Copyright (c) 2020 NVIDIA CORPORATION.  All rights reserved.
+
+load("@pip_deps//:requirements.bzl", "requirement")
+load("//ci/runtime_resources:extension.bzl", "py_static_analysis")
+
+package(default_visibility = ["//visibility:public"])
+
+py_library(
+    name = "models",
+    srcs = ["__init__.py"],
+    deps = [
+        ":coco",
+        requirement("torch"),
+        requirement("torchvision"),
+    ],
+)
+
+py_library(
+    name = "coco_eval",
+    srcs = ["coco_eval.py"],
+    deps = [
+        ":coco",
+        requirement("torch"),
+        requirement("numpy"),
+        requirement("pycocotools"),
+    ],
+)
+
+py_library(
+    name = "coco_panoptic",
+    srcs = ["coco_panoptic.py"],
+    deps = [
+        ":coco",
+        "//detr/util",
+        "//detr/util:box_ops",
+        requirement("torch"),
+        requirement("numpy"),
+        #requirement("panopticapi"),
+        requirement("PIL"),
+    ],
+)
+
+py_library(
+    name = "coco",
+    srcs = ["coco.py"],
+    deps = [
+        ":transforms",
+        "//detr/util",
+        "//detr/util:box_ops",
+        requirement("torch"),
+        requirement("torchvision"),
+        requirement("pycocotools"),
+    ],
+)
+
+py_library(
+    name = "coco_eval",
+    srcs = ["coco_eval.py"],
+    deps = [
+        ":coco",
+        requirement("torch"),
+        requirement("numpy"),
+        requirement("pycocotools"),
+    ],
+)
+
+py_library(
+    name = "nvidia",
+    srcs = ["nvidia.py"],
+    deps = [
+        # ":config",
+        ":nvidia_utils",
+        ":subset_sequential_sampler",
+        "//moduluspy/modulus/multi_task_loader",
+        # requirement("matplotlib"),
+        requirement("numpy"),
+        requirement("opencv-python"),
+        requirement("torch"),
+    ],
+)
+
+py_library(
+    name = "subset_sequential_sampler",
+    srcs = ["subset_sequential_sampler.py"],
+    deps = [
+        requirement("torch"),
+    ],
+)
+
+py_library(
+    name = "transforms",
+    srcs = ["transforms.py"],
+    deps = [
+        "//detr/util",
+        "//detr/util:box_ops",
+         "//detr/util:misc",
+        requirement("torch"),
+        requirement("torchvision"),
+        requirement("PIL"),
+    ],
+)

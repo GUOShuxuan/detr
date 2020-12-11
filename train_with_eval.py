@@ -159,6 +159,7 @@ def main(args):
     # dataset_val = build_dataset(image_set='val', args=args)
     # modify the dataset from coco to nvdata
     # home_dir = os.environ["HOME"]
+    # on local
     # dataset_train_ = build_nvdataset(dataset_root=[
     #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
     #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
@@ -168,15 +169,15 @@ def main(args):
     #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
     #                               mode='test')
     # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
-
+    # on maglev
     dataset_train_ = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
                                      mode='train')
     dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
                                   mode='test')
     indices_50k =np.load(os.path.join(args.root_indices))
-    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
 
     dataset_train = Subset(dataset_train_, indices_50k)
+    print("Training samples: %d"%(len(dataset_train)))
     # IPython.embed()
 
     if args.distributed:
@@ -193,16 +194,6 @@ def main(args):
                                    collate_fn=utils.collate_fn, num_workers=args.num_workers)
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
-
-    # if args.dataset_file == "coco_panoptic":
-    #     # We also evaluate AP during panoptic training, on original coco DS
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # elif args.dataset_file == "nvdata":
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # else:
-    #     base_ds = get_coco_api_from_dataset(dataset_val)
 
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
@@ -221,15 +212,8 @@ def main(args):
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
 
-    # if args.eval:
-    #     test_stats, coco_evaluator = evaluate_nvdata(model, criterion, postprocessors,
-    #                                           data_loader_val, base_ds, device, args.output_dir)
-    #     if args.output_dir:
-    #         utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
-    #     return
-
-    # if args.eval:
-    #     evaluate(model, dataset_val, postprocessors, device)
+    if args.eval:
+        evaluate(model, dataset_val, postprocessors, device)
 
     print("Start training")
     start_time = time.time()
@@ -253,7 +237,8 @@ def main(args):
                     'epoch': epoch,
                     'args': args,
                 }, checkpoint_path)
-
+        if epoch==0 or (epoch + 1) % 50 ==0:
+            evaluate(model, dataset_val, postprocessors, device, output_dir)
         # test_stats, coco_evaluator = evaluate_nvdata(
         #     model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
         # )
@@ -295,9 +280,7 @@ if __name__ == '__main__':
     main(args)
 
 
-# dazel run //detr/workflows:train_detr -- -e maglev --remote_registry ngc
-# dazel run //sandbox/williamz/detr:main
+# CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:train_with_eval -- --eval
 
-# run on: CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:main -- --batch_size 4 --dilation --output_dir /home/shuxuang/experiments/detr_dc5_50k_bs4/
-
-# dazel run //sandbox/williamz/detr/workflows:train_detr -- -e maglev --remote_registry ngc
+# test:
+# CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:train_with_eval -- --eval --resume /home/shuxuang/experiments/detr_50k_1gpus_bs2/checkpoint.pth
