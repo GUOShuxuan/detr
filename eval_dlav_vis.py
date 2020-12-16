@@ -4,6 +4,7 @@
 
 import argparse
 import os
+import time
 
 from dlav.metrics.detection.data.metrics_database import MetricsDatabase
 # from dlav.metrics.detection.process.detection_metrics_wrapper import DetectionMetricsWrapper
@@ -23,7 +24,7 @@ from sandbox.williamz.detr.detection_metrics_wrapper import DetectionMetricsWrap
 
 import IPython
 
-DATASET_MEAN = (104, 117, 123)
+# DATASET_MEAN = (104, 117, 123)
 # TODO(@williamz): This should really come from the dataset instance. Too brittle
 # otherwise. It also needs to be changed for AV data eventually --> best place to
 # encapsulate that is in the dataset.
@@ -74,6 +75,20 @@ def plot_gts(pil_img, labels, boxes, out_img):
 # plot_results(im, scores, boxes)
 
 def plot_gts_results(pil_img, prob, labels, boxes, gt_labels, gt_boxes, out_img):
+    '''
+    pil_image: the original images before transform in loading the nvdata
+    prob: the predicted prob of the predicted classes
+    labels: the predicted labels 
+    boxes: the predicted boxes
+    gt_labels: ground truth lables
+    gt_boxes: ground truth boxes before the target transform
+    In my case, I do some modification in the pull_item(i):
+    orig_img, image, ori_target, target = dataset.pull_item(i, mode='vis'):
+    plot_gts_results(orig_img, predictions[..., 1], predictions[..., 0], predictions[..., 2:6],
+                        ori_target[:,-1], ori_target[:, :4], 
+                        "/home/shuxuang/experiments/demos/detr_results/hc_08/img_q100_300epochs_hc_%d.jpg"%(i))
+
+    '''
     # plt.figure(figsize=(3200, 1000))
     # plt.rcParams.update({'font.size': 6})
     fig, ((ax1), (ax2)) = plt.subplots(1, 2, figsize=(35,10))
@@ -124,13 +139,14 @@ def vis_bboxes(model, dataset, postprocessors, device, out_dir=None):
     # frames, labels, detections = [], [], []
     # TODO(@williamz): Switch to batched mode once the `pull_item` has been put
     # into `__getitem__` directly.
-    # sample_set = [0, 20, 100, 1000, 2000, 3000, 5000, 6000, 10000, 20000, 30000, 40000]
+    sample_set = [0, 20, 100, 1000, 2000, 3000, 5000, 6000, 10000, 20000, 30000, 40000]
     # print(len(dataset))
-    sample_set = [10000] # 2000, 10000
-
+    # sample_set = [20, 100, 2000] # 2000, 10000
+    # sample_set = [2000]
+    time = 0
     for i in sample_set:  # need to implement returning the length of the dataset #len(dataset)
 
-        print("Processing Image %d out of %d" % (i, len(sample_set)))
+        # print("Processing Image %d out of %d" % (i, len(sample_set)))
         # image is a CHW tensor.
         # target is a [num_objects, 5] numpy.array, where the 5 values are
         # [L, T, R, B, class_index].
@@ -182,7 +198,7 @@ def vis_bboxes(model, dataset, postprocessors, device, out_dir=None):
 
         plot_gts_results(orig_img, predictions[..., 1], predictions[..., 0], predictions[..., 2:6],
                         ori_target[:,-1], ori_target[:, :4], 
-                        "/home/shuxuang/experiments/demos/detr_results/hc_08/bgr/img_q100_hc_%d.jpg"%(i))
+                        "/home/shuxuang/experiments/demos/detr_results/hc_08/forward_center/img_q100_300epochs_rgb_hc_%d.jpg"%(i))
         # IPython.embed()
         # compute mAP for each image
         frames, labels, detections = [], [], []
@@ -239,6 +255,27 @@ def vis_bboxes(model, dataset, postprocessors, device, out_dir=None):
             # TODO(@williamz): investigate delegating all printing to metrics code (with possible
             # changes upstream).
             dm_output.print_average_precision(results)
+
+def inference_time(model, dataset, postprocessors, device, out_dir=None):
+    """Main function."""
+
+    model.eval()
+    _t = {'im_detect': Timer(), 'misc': Timer()}
+    time = 0
+    for i in range(1000):  # need to implement returning the length of the dataset #len(dataset)
+
+        orig_img, image, ori_target, target = dataset.pull_item(i, mode='vis') # orig_img rgb
+       
+        image = image.to(device).unsqueeze(0)
+   
+        _t['im_detect'].tic()
+        outputs = model(image)
+        detect_time = _t['im_detect'].toc(average=False)
+        time = time + detect_time
+        print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1,
+                                                    1000, detect_time))
+    print(time/1000)
+
 
 def _get_frame_labels(frame_id, target):
     """Get labels for a given a frame.
@@ -346,3 +383,29 @@ def box_iou(boxes1, boxes2):
 
     iou = inter / (area1[:, None] + area2 - inter)
     return iou
+
+
+class Timer(object):
+    """A simple timer."""
+    def __init__(self):
+        self.total_time = 0.
+        self.calls = 0
+        self.start_time = 0.
+        self.diff = 0.
+        self.average_time = 0.
+
+    def tic(self):
+        # using time.time instead of time.clock because time time.clock
+        # does not normalize for multithreading
+        self.start_time = time.time()
+
+    def toc(self, average=True):
+        self.diff = time.time() - self.start_time
+        self.total_time += self.diff
+        self.calls += 1
+        self.average_time = self.total_time / self.calls
+        if average:
+            return self.average_time
+        else:
+            return self.diff
+

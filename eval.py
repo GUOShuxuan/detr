@@ -97,6 +97,7 @@ def get_args_parser():
     parser.add_argument('--root_indices', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
+    parser.add_argument('--camera', type=str, default='full')
 
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
@@ -160,7 +161,7 @@ def main(args):
     dataset_val = build_nvdataset(dataset_root=[
                                     os.path.join(os.environ["HOME"],'datasets/test'), 
                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-                                  mode='test')
+                                  mode='test', camera=args.camera)
     # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
     # # on maglev
     # dataset_train_ = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
@@ -189,6 +190,7 @@ def main(args):
         else:
             print('Loading model: %s'%args.resume)
             checkpoint = torch.load(args.resume, map_location='cpu')
+        print('Load model from %d epoch' % checkpoint['epoch'])
         model_without_ddp.load_state_dict(checkpoint['model'])
 
     if args.eval:

@@ -5,8 +5,10 @@ BoxParser written by William Zhang
 
 Copyright (c) 2020 NVIDIA CORPORATION.  All rights reserved.
 
-This is v2, removing to rgb because the data is rgb
+This is for v1 with to rgb, however it doesn't have to, so move to v2
 """
+
+
 
 from copy import deepcopy
 import os
@@ -187,6 +189,7 @@ class NVIDIADetection(data.Dataset):
                     feature_parser=parser,
                     exclude_frames="UNLABELED",
                     feature_conditions=["features.label_data_type = 'BOX2D'"],                          
+                    # frame_conditions=["sequences.camera_location='forward center'"]
                 )
             elif camera== 'forward_center':
                 print("camera view forward_center")
@@ -209,7 +212,9 @@ class NVIDIADetection(data.Dataset):
                     export_path=os.path.join(image_sets2, "frames"),
                     feature_parser=parser,
                     exclude_frames="UNLABELED",
-                    feature_conditions=["features.label_data_type = 'BOX2D'"], 
+                    feature_conditions=["features.label_data_type = 'BOX2D'",
+                                        ], # "sequences.camera_location='%center%'"
+                    # frame_conditions=["sequences.camera_location='forward center'"]
                 )
             elif camera== 'forward_center':
                 print("camera view forward_center")
@@ -247,8 +252,8 @@ class NVIDIADetection(data.Dataset):
         img = img.transpose(1,2,0) # (604, 960, 3)
         orig_img = Image.fromarray(np.uint8(img*255), mode='RGB') # is rgb already
         # to rgb # don't have to
-        # img = img[:, :, (2, 1, 0)] 
-        # img = Image.fromarray(np.uint8(img*255), mode='RGB')
+        img = img[:, :, (2, 1, 0)] 
+        img = Image.fromarray(np.uint8(img*255), mode='RGB')
         # img = Image.fromarray(np.uint8(img*255)).convert('RGB') # <PIL.Image.Image image mode=RGB size=960x604 at 0x7FB0479B4FD0>
 #         print(img)
         anno = {'bbox': ori_target[:, :4], 
@@ -256,7 +261,7 @@ class NVIDIADetection(data.Dataset):
         image_id = index
         target = {'image_id': image_id, 'annotations': anno}
 #         print(target)
-        img, target = self.prepare(orig_img, target) #orig_img
+        img, target = self.prepare(img, target) #orig_img
 #         print(img)
 #         print(target)
         # img = img.transpose(1, 2, 0)
@@ -267,7 +272,6 @@ class NVIDIADetection(data.Dataset):
         if mode == 'train':
             return img, target
         elif mode =='test':
-            print(img.size())
             return img, ori_target, target
         elif mode =='vis':
             return orig_img, img, ori_target, target
@@ -329,15 +333,15 @@ def make_coco_transforms(image_set):
         T.ToTensor(),
         # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         # mean=(104, 117, 123) ==> (0.40784313725490196 0.4588235294117647 0.4823529411764706) transpose(2,1,0) = [0.482, 0.459, 0.408]
-        # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) # coco mean and std this shuold be in bgr
+        # T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) # coco mean and std
         ## before for 150 epochs 
-        # T.Normalize([0.482, 0.459, 0.408], [1., 1., 1.]) # mean=(104, 117, 123) for not for rgb, bgr instead, after transpose [0.482, 0.459, 0.408]
+        T.Normalize([0.482, 0.459, 0.408], [1., 1., 1.]) # mean=(104, 117, 123) for not for rgb, bgr instead, after transpose [0.482, 0.459, 0.408]
         # New implement from 12.11
         # This is rgb already # mean=(104, 117, 123) ==> (0.40784313725490196 0.4588235294117647 0.4823529411764706)
-        T.Normalize([0.408, 0.459, 0.482], [1., 1., 1.])
+        # T.Normalize([0.408, 0.459, 0.482], [1., 1., 1.])
         
     ])
-    print('NVdata Norm: [0.408, 0.459, 0.482], [1., 1., 1.]')
+    print('NVdata Norm: [0.482, 0.459, 0.408], [1., 1., 1.]')
     scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
 
     if image_set == 'train':
@@ -355,9 +359,8 @@ def make_coco_transforms(image_set):
         ])
 
     if image_set == 'test':
-        # print("640 960")
         return T.Compose([
-            T.RandomResize([604], max_size=960), #800 1333, 604 960
+            T.RandomResize([800], max_size=1333),
             normalize,
         ])
 
@@ -379,3 +382,8 @@ def build_nvdataset(dataset_root, mode, camera):
         )
 
     return dataset
+
+# main difference:
+    # -line 251, 252: uncomment
+    # -line 260: img, target = self.prepare(orig_img, target)
+    # -line 337: switch norm to this line

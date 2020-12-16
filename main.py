@@ -96,6 +96,7 @@ def get_args_parser():
     parser.add_argument('--dataset_root_test', type=str) 
     parser.add_argument('--root_indices', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
+    parser.add_argument('--camera', type=str, default='full')
     parser.add_argument('--remove_difficult', action='store_true')
 
     parser.add_argument('--output_dir', default='',
@@ -170,9 +171,9 @@ def main(args):
     # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
 
     dataset_train_ = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
-                                     mode='train')
+                                     mode='train', camera=args.camera)
     dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
-                                  mode='test')
+                                  mode='test', camera=args.camera)
     indices_50k =np.load(os.path.join(args.root_indices))
     # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
 

@@ -22,7 +22,7 @@ import util.misc as utils
 from sandbox.williamz.detr.engine import train_one_epoch
 from sandbox.williamz.detr.models import build_model
 from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
-from sandbox.williamz.detr.eval_dlav_vis import vis_bboxes
+from sandbox.williamz.detr.eval_dlav_vis import vis_bboxes, inference_time
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
@@ -100,6 +100,7 @@ def get_args_parser():
     parser.add_argument('--root_indices', type=str)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
+    parser.add_argument('--camera', type=str, default='full')
 
     parser.add_argument('--output_dir', default='',
                         help='path where to save, empty for no saving')
@@ -166,7 +167,7 @@ def read_log(logfile):
     
     # fig.tight_layout()
     plt.show()
-    plt.savefig("/home/shuxuang/experiments/demos/detr_losses/baseline_q100.png", dpi=300)
+    plt.savefig("/home/shuxuang/experiments/demos/detr_losses/baseline_rgb_q100_300epochs_front_camera.png", dpi=300)
 
     # epoch-train-class-error, epoch-train-loss
     # epoch-train-loss_boxes, ce, giou * 5, train_cardinality_error*5
@@ -237,10 +238,12 @@ def main(args):
     print('number of params:', n_parameters)
 
 
-    dataset_val = build_nvdataset(dataset_root=[
-                                    os.path.join(os.environ["HOME"],'datasets/test'), 
-                                    os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-                                  mode='test')
+    # dataset_val = build_nvdataset(dataset_root=[
+    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
+    #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+    #                               mode='test', camera=args.camera)
+    dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
+                                  mode='test', camera=args.camera)
 
     print("Validation samples: %d"%(len(dataset_val)))
     # IPython.embed()
@@ -277,10 +280,12 @@ def main(args):
         else:
             print('Loading model: %s'%args.resume)
             checkpoint = torch.load(args.resume, map_location='cpu')
+        print('Load model from %d epoch' % checkpoint['epoch'])
         model_without_ddp.load_state_dict(checkpoint['model'])
 
     if args.eval:
-        vis_bboxes(model, dataset_val, postprocessors, device)
+        # vis_bboxes(model, dataset_val, postprocessors, device)
+        inference_time(model, dataset_val, postprocessors, device)
     return model, dataset_val, postprocessors, device
 
 if __name__ == '__main__':
@@ -298,3 +303,5 @@ if __name__ == '__main__':
 #  - the title of the loss figure, 
 #  - the name of the saved loss figure file 
 #  - the name of samples in eval_dlav_vis.
+
+# CUDA_VISIBLE_D0VICES=0 dazel run //sandbox/williamz/detr:eval_vis -- --eval --resume /home/shuxuang/experiments/detr_results/20201207/baseline_100/ --num_queries 100 --camera full

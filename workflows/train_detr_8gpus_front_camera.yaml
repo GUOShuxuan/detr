@@ -15,14 +15,14 @@ defaults:
         version: 2020-03-10-16-13-7945
         mountPath: /drivenet_2
       - name: train-outputs
-        version: de4ff57e-3a95-44d1-bc06-a53be35ef8be
+        version: 198a63af-3715-4fb2-8e54-13fcc457c114
         mountPath: /labeled_dir
       - name: detection-f-US-KPI
         version: 2020-06-03-14-33-5dd3
         mountPath: /dataset
 
 tasks:
-- name: detr-train-8gpus-baseline-nvdatanorm-nottorgb-500
+- name: detr-train-8gpus-baseline-nvdatanorm-nottorgb-300epochs-front-camera
   completions: 1
   env:
     MAGLEV_MULTIGPU_MODE: none
@@ -50,14 +50,14 @@ tasks:
   #   --batch_size 2"
   command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main
     --num_queries 100
-    --epochs 1000
+    --epochs 300
     --dataset_root_sql /drivenet_1
     --dataset_root_img /drivenet_2
     --dataset_root_test /dataset
     --root_indices /labeled_dir/labeled_sets/id_1_criterion_Max_SSD_num_labels_50000.npy
     --output_dir /out
     --batch_size 2
-    --camera full"
+    --camera forward_center"
   outputs:
     volumes:
     - name: train-outputs

@@ -12,6 +12,7 @@ APPS = [
     "//sandbox/williamz/detr:main",
     "//sandbox/williamz/detr:train_with_eval",
     "//sandbox/williamz/detr:train_with_eval_init",
+    "//sandbox/williamz/detr:eval_vis",
 ]
 
 # Docker / launcher related stuff.
