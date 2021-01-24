@@ -1,0 +1,68 @@
+imagePullSecrets:
+- nvcrio
+
+defaults:
+  # localImage: bazel/sandbox/williamz/secret_project/docker:image
+  localImage: bazel/sandbox/williamz/detr/docker:image
+  # localImage: bazel/detr/docker:detr_image
+  # localImage: bazel/dlav/common:image
+  inputs:
+    volumes:
+      - name: split-outputs
+        version: 8493af65-a8ff-5489-b876-d2695b855014
+        mountPath: /drivenet_1
+      - name: d3l-detection-f-train
+        version: 2020-03-10-16-13-7945
+        mountPath: /drivenet_2
+      - name: train-outputs
+        version: 198a63af-3715-4fb2-8e54-13fcc457c114
+        mountPath: /labeled_dir
+      - name: detection-f-US-KPI
+        version: 2020-06-03-14-33-5dd3
+        mountPath: /dataset
+
+tasks:
+- name: detr-train-8gpus-baseline-nvdatanorm-nottorgb-300epochs-front-camera-full-pytorch1.7-amp-bs4
+  completions: 1
+  env:
+    MAGLEV_MULTIGPU_MODE: none
+  gpus: 8
+  ## baseline
+  # command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main
+  #   --num_queries 100
+  #   --epochs 300
+  #   --dataset_root_sql /drivenet_1
+  #   --dataset_root_img /drivenet_2
+  #   --dataset_root_test /dataset
+  #   --output_dir /out
+  #   --batch_size 2
+  #   --camera forward_center"
+  ## amp - baseline with bs 2
+  # command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main_amp
+  #   --num_queries 100
+  #   --epochs 300
+  #   --dataset_root_sql /drivenet_1
+  #   --dataset_root_img /drivenet_2
+  #   --dataset_root_test /dataset
+  #   --output_dir /out
+  #   --batch_size 2
+  #   --camera forward_center
+  #   --amp"
+  # amp - baseline with bs 4
+  command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main_amp
+    --num_queries 100
+    --epochs 300
+    --dataset_root_sql /drivenet_1
+    --dataset_root_img /drivenet_2
+    --dataset_root_test /dataset
+    --output_dir /out
+    --batch_size 4
+    --camera forward_center
+    --amp"
+  outputs:
+    volumes:
+    - name: train-outputs
+      mountPath: /out
+
+# here we used all 200,516 training samples with forward_center camera view
+# dazel run //sandbox/williamz/detr/workflows:train_detr_8gpus_front_camera_full -- -e maglev --remote_registry ngc

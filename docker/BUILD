@@ -10,9 +10,11 @@ load("@io_bazel_rules_docker//python:image.bzl", "py_layer")
 
 APPS = [
     "//sandbox/williamz/detr:main",
+    "//sandbox/williamz/detr:main_amp",
     "//sandbox/williamz/detr:train_with_eval",
     "//sandbox/williamz/detr:train_with_eval_init",
     "//sandbox/williamz/detr:eval_vis",
+    "//sandbox/williamz/detr:eval",
 ]
 
 # Docker / launcher related stuff.

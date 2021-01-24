@@ -167,7 +167,7 @@ def main(args):
     # dataset_train_ = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
     #                                  mode='train')
     # dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
-    #                               mode='test')
+    #                               mode='test', camera=args.camera)
     # indices_50k =np.load(os.path.join(args.root_indices))
 
     # dataset_train = Subset(dataset_train_, indices_50k)
@@ -190,7 +190,7 @@ def main(args):
         else:
             print('Loading model: %s'%args.resume)
             checkpoint = torch.load(args.resume, map_location='cpu')
-        print('Load model from %d epoch' % checkpoint['epoch'])
+        print('Load model from %d epoch' % (checkpoint['epoch']+1))
         model_without_ddp.load_state_dict(checkpoint['model'])
 
     if args.eval:

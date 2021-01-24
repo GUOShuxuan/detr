@@ -21,6 +21,10 @@ from modulus.multi_task_loader.dataset import (
     LabelDataType,
     SqliteDataset,
 )
+# from modulus.multi_task_loader.dataset.sqlite_dataset import (
+#     LabelDataType,
+#     SqliteDataset,
+# )
 from modulus.multi_task_loader.image_io import read_image
 from modulus.multi_task_loader.task_parsers import apply_single_stm
 
@@ -241,7 +245,7 @@ class NVIDIADetection(data.Dataset):
     def pull_item(self, index, mode='train'):
         """Pull item."""
         img, ori_target = self.pull_image_and_anno(index)
-#         print(img.shape) # (3, 604, 960)
+        # print(img.shape) # (3, 604, 960)
 #         print(target)
         # turn img from np.ndarray to PIL
         img = img.transpose(1,2,0) # (604, 960, 3)
@@ -267,7 +271,7 @@ class NVIDIADetection(data.Dataset):
         if mode == 'train':
             return img, target
         elif mode =='test':
-            print(img.size())
+            # print(img.size())
             return img, ori_target, target
         elif mode =='vis':
             return orig_img, img, ori_target, target
@@ -337,7 +341,7 @@ def make_coco_transforms(image_set):
         T.Normalize([0.408, 0.459, 0.482], [1., 1., 1.])
         
     ])
-    print('NVdata Norm: [0.408, 0.459, 0.482], [1., 1., 1.]')
+    print('NVdata Norm rgb: [0.408, 0.459, 0.482], [1., 1., 1.]')
     scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
 
     if image_set == 'train':
@@ -355,9 +359,11 @@ def make_coco_transforms(image_set):
         ])
 
     if image_set == 'test':
-        # print("640 960")
+        # print("604 960")
+        print("800 1333")
         return T.Compose([
-            T.RandomResize([604], max_size=960), #800 1333, 604 960
+            # T.RandomResize([604], max_size=960), #800 1333, 604 960, not604, should be 608
+            T.RandomResize([800], max_size=1333),     
             normalize,
         ])
 

@@ -22,6 +22,15 @@ py_binary(
 )
 
 py_binary(
+    name = "engine_amp",
+    srcs = ["engine_amp.py"],
+    deps = [
+        "//sandbox/williamz/detr/util:misc",
+        requirement("torch"),
+    ],
+)
+
+py_binary(
     name = "hubconf",
     srcs = ["hubconf.py"],
     deps = [
@@ -40,6 +49,22 @@ py_binary(
     srcs = ["main.py"],
     deps = [
         ":engine", 
+        ":eval_dlav_metrics", 
+        # "//moduluspy/modulus/multi_task_loader",
+        "//sandbox/williamz/detr/util:misc",
+        "//sandbox/williamz/detr/models",
+        "//sandbox/williamz/detr/datasets:nvidia",
+        requirement("torch"),
+        requirement("numpy"),
+        requirement("ipython"),
+    ],
+)
+
+py_binary(
+    name = "main_amp",
+    srcs = ["main_amp.py"],
+    deps = [
+        ":engine_amp", 
         ":eval_dlav_metrics", 
         # "//moduluspy/modulus/multi_task_loader",
         "//sandbox/williamz/detr/util:misc",
@@ -197,6 +222,11 @@ py_binary(
 py_import_test(
     "main",
     dotted_name = "sandbox.williamz.detr.main",
+)
+
+py_import_test(
+    "main_amp",
+    dotted_name = "sandbox.williamz.detr.main_amp",
 )
 
 py_import_test(

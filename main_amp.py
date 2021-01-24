@@ -14,12 +14,13 @@ import os
 
 import numpy as np
 import torch
+import torch.cuda.amp as amp
 from torch.utils.data import DataLoader, DistributedSampler, Subset
 
 import datasets
 import util.misc as utils
 # from datasets import get_coco_api_from_dataset
-from sandbox.williamz.detr.engine import train_one_epoch
+from sandbox.williamz.detr.engine_amp import train_one_epoch
 from sandbox.williamz.detr.models import build_model
 from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
 from sandbox.williamz.detr.eval_dlav_metrics import evaluate
@@ -37,6 +38,7 @@ def get_args_parser():
     parser.add_argument('--lr_drop', default=200, type=int)
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
+    parser.add_argument('--amp', default=False, action='store_true', help='enable PyTorch native amp')
 
     # Model parameters
     parser.add_argument('--frozen_weights', type=str, default=None,
@@ -126,12 +128,13 @@ def main(args):
     print(args)
 
     device = torch.device(args.device)
-
+    
     # fix the seed for reproducibility
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
+    # torch.backends.cudnn.benchmark = True 
     # IPython.embed()
     # IPython.embed()
     # os.system("sudo chmod -R 777 /home/shuxuang/.cache/")
@@ -155,6 +158,10 @@ def main(args):
     optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                   weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
+    # Creates a GradScaler once at the beginning of training.
+    
+    scaler = amp.GradScaler(enabled=(args.device == 'cuda' and args.amp))
+    print('Using AMP: ', args.amp, scaler.is_enabled())
 
     # dataset_train = build_dataset(image_set='train', args=args)
     # dataset_val = build_dataset(image_set='val', args=args)
@@ -179,6 +186,7 @@ def main(args):
         # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
         dataset_train = Subset(dataset_train, indices_50k)
     # IPython.embed()
+    print("root_indices", args.root_indices is not None) # False: load indices_50k
     print("Train samples: %d"%(len(dataset_train)))
 
     if args.distributed:
@@ -222,7 +230,7 @@ def main(args):
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
-
+            scaler.load_state_dict(checkpoint['scaler'])
     # if args.eval:
     #     test_stats, coco_evaluator = evaluate_nvdata(model, criterion, postprocessors,
     #                                           data_loader_val, base_ds, device, args.output_dir)
@@ -239,13 +247,13 @@ def main(args):
         if args.distributed:
             sampler_train.set_epoch(epoch)
         train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer, device, epoch,
+            model, criterion, scaler, data_loader_train, optimizer, device, epoch,
             args.clip_max_norm)
         lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
             # extra checkpoint before LR drop and every 100 epochs
-            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 100 == 0:
+            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 50 == 0:
                 checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
             for checkpoint_path in checkpoint_paths:
                 utils.save_on_master({
@@ -254,6 +262,7 @@ def main(args):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
+                    'scaler': scaler.state_dict(),
                 }, checkpoint_path)
 
         # test_stats, coco_evaluator = evaluate_nvdata(

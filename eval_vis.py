@@ -216,7 +216,7 @@ def main(args):
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
     print(args)
-
+    # IPython.embed()
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
@@ -238,12 +238,12 @@ def main(args):
     print('number of params:', n_parameters)
 
 
-    # dataset_val = build_nvdataset(dataset_root=[
-    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
-    #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                               mode='test', camera=args.camera)
-    dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
+    dataset_val = build_nvdataset(dataset_root=[
+                                    os.path.join(os.environ["HOME"],'datasets/test'), 
+                                    os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
                                   mode='test', camera=args.camera)
+    # dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
+    #                               mode='test', camera=args.camera)
 
     print("Validation samples: %d"%(len(dataset_val)))
     # IPython.embed()
@@ -252,11 +252,11 @@ def main(args):
     # dataset_train_ = build_nvdataset(dataset_root=[
     #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
     #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                                 mode='train')
+    #                                 mode='train', camera=args.camera)
 
-    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
-    # dataset_train = Subset(dataset_train_, indices_50k)
-    # print(len(dataset_train_))
+    # # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
+    # # dataset_train = Subset(dataset_train_, indices_50k)
+    # print("Train samples: %d"%(len(dataset_train_)))
     # print(len(dataset_val))
 
 
@@ -287,6 +287,12 @@ def main(args):
         # vis_bboxes(model, dataset_val, postprocessors, device)
         inference_time(model, dataset_val, postprocessors, device)
     return model, dataset_val, postprocessors, device
+
+def generate_indices():
+    # indices_50k =np.load(os.path.join(args.root_indices))
+    indices_100k = None
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script', parents=[get_args_parser()])

@@ -10,7 +10,7 @@ defaults:
     volumes:
       - name: train-outputs
         version: 0502013c-9206-4553-ac67-5d4d08530b2d
-        mountPath: /model
+        mountPath: /baseline_100_300epochs
       - name: detection-f-US-KPI
         version: 2020-06-03-14-33-5dd3
         mountPath: /dataset
@@ -45,11 +45,11 @@ tasks:
   #   --root_indices /labeled_dir/labeled_sets/id_1_criterion_Max_SSD_num_labels_50000.npy
   #   --output_dir /out
   #   --batch_size 2"
-  command: bash -euxo pipefail -c "sandbox/williamz/detr/eval
+  command: bash -euxo pipefail -c "sandbox/williamz/detr/eval_vis
     --num_queries 100
     --dataset_root_sql /drivenet_1
     --dataset_root_test /dataset
-    --resume /model/
+    --resume /baseline_100_300epochs/
     --camera full
     --eval "
   outputs:
@@ -59,3 +59,4 @@ tasks:
 
 
 # dazel run //sandbox/williamz/detr/workflows:test_detr -- -e maglev --remote_registry ngc
+# generate .npy with 100k, 200k, 300k random indices
