@@ -61,6 +61,22 @@ py_binary(
 )
 
 py_binary(
+    name = "main_5classes",
+    srcs = ["main_5classes.py"],
+    deps = [
+        ":engine", 
+        ":eval_dlav_metrics", 
+        # "//moduluspy/modulus/multi_task_loader",
+        "//sandbox/williamz/detr/util:misc",
+        "//sandbox/williamz/detr/models",
+        "//sandbox/williamz/detr/datasets:nvidia_5classes",
+        requirement("torch"),
+        requirement("numpy"),
+        requirement("ipython"),
+    ],
+)
+
+py_binary(
     name = "main_amp",
     srcs = ["main_amp.py"],
     deps = [
@@ -113,6 +129,8 @@ py_library(
         "//dlav/metrics/detection/config:constants",
         "//dlav/metrics/detection/data:metrics_database",
         "//dlav/metrics/detection/data:types",
+        "//dlav/metrics/detection/data:drivenet_metrics_database",
+       "//dlav/metrics/detection/data:yaml_types",
         "//dlav/metrics/detection/devkit:detection_metrics",
         "//dlav/metrics/detection/process:algorithms",
         "//dlav/metrics/detection/process:database_marshaller",
@@ -131,6 +149,23 @@ py_binary(
         "//sandbox/williamz/detr:detection_metrics_wrapper",
         "//dlav/metrics/detection/data:metrics_database",
         "//dlav/metrics/detection/report:output",
+	    "//sandbox/williamz/detr/datasets:nvidia",
+        requirement("torch"),
+        requirement("ipython"),
+        requirement("matplotlib"),
+    ],
+)
+
+py_binary(
+    name = "eval_dlav_metrics_config",
+    srcs = ["eval_dlav_metrics_config.py"],
+    deps = [
+        "//sandbox/williamz/secret_project:types",
+        "//sandbox/williamz/detr:detection_metrics_wrapper",
+        "//dlav/metrics/detection/data:metrics_database",
+        "//dlav/metrics/detection/report:output",
+        "//dlav/drivenet/evaluation:evaluation_config",
+        "//dlav/drivenet/spec_handling:spec_loader",
 	    "//sandbox/williamz/detr/datasets:nvidia",
         requirement("torch"),
         requirement("ipython"),
@@ -175,10 +210,28 @@ py_binary(
     deps = [
         ":engine", 
         ":eval_dlav_metrics", 
+        ":eval_dlav_metrics_config", 
         # "//moduluspy/modulus/multi_task_loader",
         "//sandbox/williamz/detr/util:misc",
         "//sandbox/williamz/detr/models",
         "//sandbox/williamz/detr/datasets:nvidia",
+        requirement("torch"),
+        requirement("numpy"),
+        requirement("ipython"),
+    ],
+)
+
+py_binary(
+    name = "eval_5classes",
+    srcs = ["eval_5classes.py"],
+    deps = [
+        ":engine", 
+        ":eval_dlav_metrics", 
+        ":eval_dlav_metrics_config", 
+        # "//moduluspy/modulus/multi_task_loader",
+        "//sandbox/williamz/detr/util:misc",
+        "//sandbox/williamz/detr/models",
+        "//sandbox/williamz/detr/datasets:nvidia_5classes",
         requirement("torch"),
         requirement("numpy"),
         requirement("ipython"),
@@ -227,6 +280,11 @@ py_import_test(
 py_import_test(
     "main_amp",
     dotted_name = "sandbox.williamz.detr.main_amp",
+)
+
+py_import_test(
+    "main_5classes",
+    dotted_name = "sandbox.williamz.detr.main_5classes",
 )
 
 py_import_test(

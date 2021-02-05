@@ -14,9 +14,6 @@ defaults:
       - name: detection-f-US-KPI
         version: 2020-06-03-14-33-5dd3
         mountPath: /dataset
-      - name: split-outputs
-        version: 8493af65-a8ff-5489-b876-d2695b855014
-        mountPath: /drivenet_1
 
 tasks:
 - name: detr-test
@@ -47,7 +44,6 @@ tasks:
   #   --batch_size 2"
   command: bash -euxo pipefail -c "sandbox/williamz/detr/eval
     --num_queries 100
-    --dataset_root_sql /drivenet_1
     --dataset_root_test /dataset/
     --resume /model/checkpoint0299.pth
     --camera forward_center

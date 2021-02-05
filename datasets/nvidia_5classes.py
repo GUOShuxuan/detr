@@ -93,17 +93,18 @@ NVIDIA_CLASSES_MAPPED = {
 }
 
 NVIDIA_CLASSES = (
-    "car",
-    "bicycle",
-    "person",
-    "road_sign",
-    "traffic_light",
-    "stroller",
-    "hazard",
-    "headlight",
-    "other_animal",
-    "taillight",
+    "car", # 0
+    "bicycle", # 1
+    "person", # 2
+    "road_sign", # 3
+    "traffic_light", # 4
+    "stroller", # 5
+    "hazard", # 6
+    "headlight", # 7
+    "other_animal", # 8
+    "taillight", # 9
 )
+# 5 classes: 0, 1, 2, 3, 4
 
 class_to_ind = dict(zip(NVIDIA_CLASSES, range(len(NVIDIA_CLASSES))))
 
@@ -185,7 +186,8 @@ class NVIDIADetection(data.Dataset):
             if camera == 'full':
                 print("camera view full")
                 self.sqlite_dataset = SqliteDataset(
-                    filename=os.path.join(image_sets, "dataset.sqlite"),
+                    filename=os.path.join(image_sets, "dataset.sqlite"), 
+                    # when change to dataset-v9.sqlite, get the error: TypeError: 'InterchangeLabelData' object is not subscriptable
                     export_format_name="rgb_half-xavierisp",
                     export_path=os.path.join(image_sets, "frames"),
                     feature_parser=parser,
@@ -199,7 +201,7 @@ class NVIDIADetection(data.Dataset):
                     export_format_name="rgb_half-xavierisp",
                     export_path=os.path.join(image_sets, "frames"),
                     feature_parser=parser,
-                    # exclude_frames="UNLABELED",
+                    exclude_frames="UNLABELED",
                     feature_conditions=["features.label_data_type = 'BOX2D'"],                          
                     frame_conditions=["sequences.camera_location='forward center'"]
                 )
@@ -207,6 +209,7 @@ class NVIDIADetection(data.Dataset):
             if camera == 'full':
                 print("camera view full")
                 self.sqlite_dataset = SqliteDataset(
+                    # filename=os.path.join(image_sets, "export.sqlite"),
                     filename=os.path.join(image_sets, "dataset_300k.sqlite"),
                     export_format_name="rgb_half-xavierisp",
                     export_path=os.path.join(image_sets2, "frames"),
@@ -217,6 +220,7 @@ class NVIDIADetection(data.Dataset):
             elif camera== 'forward_center':
                 print("camera view forward_center")
                 self.sqlite_dataset = SqliteDataset(
+                    # filename=os.path.join(image_sets, "export.sqlite"),
                     filename=os.path.join(image_sets, "dataset_300k.sqlite"),
                     export_format_name="rgb_half-xavierisp",
                     export_path=os.path.join(image_sets2, "frames"),
@@ -253,8 +257,10 @@ class NVIDIADetection(data.Dataset):
         # img = Image.fromarray(np.uint8(img*255), mode='RGB')
         # img = Image.fromarray(np.uint8(img*255)).convert('RGB') # <PIL.Image.Image image mode=RGB size=960x604 at 0x7FB0479B4FD0>
 #         print(img)
-        anno = {'bbox': ori_target[:, :4], 
-                'category_id': ori_target[:, 4]} # change the before 3 target to ori_target
+        # IPython.embed()
+        select_bbox = ori_target[:, 4] < 5
+        anno = {'bbox': ori_target[select_bbox, :4], 
+                'category_id': ori_target[select_bbox, 4]} # change the before 3 target to ori_target
         image_id = index
         target = {'image_id': image_id, 'annotations': anno}
 #         print(target)
@@ -357,12 +363,11 @@ def make_coco_transforms(image_set):
         ])
 
     if image_set == 'test':
-        print("604 960") # ?608 604?
+        # print("604 960")
         print("800 1333")
         return T.Compose([
-            # 608 also the same test setting in drivenet  # 604*960 ==> 608*967 still not same as drivenet
-            # T.RandomResize([608], max_size=1000), #800 1333, 604 960, not604, should be 608 as before 
-            T.RandomResize([800], max_size=1333),   # 604*960 ==> 800*1272
+            # T.RandomResize([608], max_size=980), #800 1333, 604 960, not604, should be 608*966 604*960
+            T.RandomResize([800], max_size=1333),     
             normalize,
         ])
 

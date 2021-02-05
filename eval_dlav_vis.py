@@ -153,7 +153,7 @@ def vis_bboxes(model, dataset, postprocessors, device, out_dir=None):
         # image, target = dataset.pull_item(i)
         # IPython.embed()
         orig_img, image, ori_target, target = dataset.pull_item(i, mode='vis') # orig_img rgb
-        # IPython.embed()
+        IPython.embed()
         
         # Add batch dimension (unfortunately singular now...).
         image = image.to(device)

@@ -21,12 +21,9 @@ import util.misc as utils
 # from datasets import get_coco_api_from_dataset
 from sandbox.williamz.detr.engine import train_one_epoch
 from sandbox.williamz.detr.models import build_model
-from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
-from sandbox.williamz.detr.eval_dlav_vis import vis_bboxes, inference_time
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt
-
+from sandbox.williamz.detr.datasets.nvidia_5classes import build_nvdataset
+from sandbox.williamz.detr.eval_dlav_metrics import evaluate, evaluate_5classes
+# from sandbox.williamz.detr.eval_dlav_metrics_config import evaluate
 import IPython
 
 
@@ -92,7 +89,7 @@ def get_args_parser():
                         help="Relative classification weight of the no-object class")
 
     # dataset parameters
-    parser.add_argument('--dataset_file', default='nvdata')
+    parser.add_argument('--dataset_file', default='nvdata_5classes')
     # parser.add_argument('--coco_path', type=str)
     parser.add_argument('--dataset_root_sql', type=str)
     parser.add_argument('--dataset_root_img', type=str)
@@ -119,95 +116,6 @@ def get_args_parser():
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
     return parser
 
-def read_log(logfile):
-    loss_dict = {}
-    with open(logfile) as f:
-        lines = f.readlines()
-    nline = 0
-    for line in lines:
-        line_dict = json.loads(line)
-        for key in line_dict.keys():
-            if nline == 0:
-                loss_dict.update({key: []})
-            loss_dict[key].append(line_dict[key])
-        nline += 1
-    # IPython.embed()
-    plt.figure(figsize=(5, 10))
-    plt.rcParams.update({'font.size': 6})
-    fig, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plt.subplots(2, 3)
-    fig.suptitle('DETR Baseline with 100 queries', fontsize=10)
-    fig.subplots_adjust(top=0.90, wspace=0.25, hspace=0.25) # top=0.7
-    # fig, axes = plt.subplots(nrows=2, ncols=2)
-    # ax0, ax1, ax2, ax3 = axes.flatten()
-    for key in loss_dict.keys():
-        if key.find('unscaled') == -1:
-            if key.find('class_error') != -1:
-                ax1.plot(loss_dict["epoch"], loss_dict[key])
-            elif key.find('loss_bbox') != -1:
-                ax4.plot(loss_dict["epoch"], loss_dict[key], label=key)
-            elif key.find('loss_ce') != -1:
-                ax5.plot(loss_dict["epoch"], loss_dict[key], label=key)
-            elif key.find('loss_giou') != -1:
-                ax6.plot(loss_dict["epoch"], loss_dict[key], label=key)
-            elif key.find('loss') != -1:
-                ax2.plot(loss_dict["epoch"], loss_dict[key])
-        elif key.find('cardinality_error') != -1:
-            ax3.plot(loss_dict["epoch"], loss_dict[key], label=key)
-        
-    ax1.set_title('class error', fontsize=8)
-    ax2.set_title('loss', fontsize=8)
-    ax3.set_title('cardinality_error', fontsize=8)
-    ax4.set_title('loss_bbox', fontsize=8)
-    ax5.set_title('loss_ce', fontsize=8)
-    ax6.set_title('loss_giou', fontsize=8)
-    ax3.legend(prop={'size': 6})
-    ax4.legend(prop={'size': 6})
-    ax5.legend(prop={'size': 6})
-    ax6.legend(prop={'size': 6})
-    
-    # fig.tight_layout()
-    plt.show()
-    plt.savefig("/home/shuxuang/experiments/demos/detr_losses/baseline_rgb_q100_300epochs_front_camera.png", dpi=300)
-
-    # epoch-train-class-error, epoch-train-loss
-    # epoch-train-loss_boxes, ce, giou * 5, train_cardinality_error*5
-    
-
-def accumulate_bboxes_numbers(dataset):
-    """Main function."""
-    # The +1 for num_classes is for the background class.
-    # This line is needed because the model is typically trained with
-    # torch.nn.DataParallel, which prefixes state keys with "module".
-    # TODO(@williamz): Write a util that allows loading the state dict
-    # regardless of whether the model has been wrapped by DataParallel. 
-    # n_50 = []
-    # n_100 = []
-    # n_150 = []
-    # n_200 = []
-    # n_larger_200 = []
-
-    ns_list = [[], [], [], [], []]  
-    # ns_list[3]: [38223, 38224]
-    # ns_list[2]: [36614, 36615, 38177, 38178, 38221, 38222, 38225, 38323, 38325, 39362, 43032, 47159, 47160, 47161, 47162, 47163, 47165]
-    # ns_list[1][::200]: [524, 5591, 9440, 11904, 13810, 16593, 38193, 42916, 43602, 45248, 46297, 47572, 48546, 49084]
-    # ns_list[0][::4000]: [0, 4127, 8296, 12651, 17021, 21053, 25069, 29096, 33117, 37190, 41259, 45948]
-    ns = [0, 0, 0, 0, 0] # test: [46988, 2777, 17, 2, 0]
-
-    for i in range(len(dataset)):  # need to implement returning the length of the dataset #len(dataset)
-
-        _, _, ori_target, _ = dataset.pull_item_vis(i)
-        # IPython.embed()
-        if i%1000 == 0:
-            print("Processing Image %d out of %d" % (i, len(dataset)))
-        index = ori_target.shape[0] // 50
-        ns_list[index].append(i) 
-        ns[index] += 1
-    
-    # IPython.embed()  
-    print(ns)
-    with open('/home/shuxuang/experiments/demos/data/test/n_objects.json', 'w') as f:
-        json.dump(ns_list, f)
-
 
 def main(args):
     utils.init_distributed_mode(args)
@@ -216,7 +124,7 @@ def main(args):
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
     print(args)
-    # IPython.embed()
+
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
@@ -237,28 +145,38 @@ def main(args):
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
+    # optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
+    #                               weight_decay=args.weight_decay)
+    # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
 
-    dataset_val = build_nvdataset(dataset_root=[
-                                    os.path.join(os.environ["HOME"],'datasets/test'), 
-                                    os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-                                  mode='test', camera=args.camera)
-    # dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
-    #                               mode='test', camera=args.camera)
-
-    print("Validation samples: %d"%(len(dataset_val)))
-
-    IPython.embed()
-    # compute how many boxes in the test dataset for each image
-    # accumulate_bboxes_numbers(dataset_val)
+    # dataset_train = build_dataset(image_set='train', args=args)
+    # dataset_val = build_dataset(image_set='val', args=args)
+    # modify the dataset from coco to nvdata
+    # home_dir = os.environ["HOME"]
+    # # on local
     # dataset_train_ = build_nvdataset(dataset_root=[
     #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
     #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                                 mode='train', camera=args.camera)
+    #                                 mode='train')
+    # dataset_val = build_nvdataset(dataset_root=[
+    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
+    #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+    #                               mode='test', camera=args.camera)
+    dataset_val = build_nvdataset(dataset_root=[
+                                    os.path.join(os.environ["HOME"],'datasets/test'), 
+                                    os.path.join(os.environ["HOME"],'datasets/test')], 
+                                  mode='test', camera=args.camera)
+    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
+    # # on maglev
+    # dataset_train_ = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
+    #                                  mode='train')
+    # dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
+    #                               mode='test', camera=args.camera)
+    # indices_50k =np.load(os.path.join(args.root_indices))
 
-    # # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
-    # # dataset_train = Subset(dataset_train_, indices_50k)
-    # print("Train samples: %d"%(len(dataset_train_)))
-    # print(len(dataset_val))
+    # dataset_train = Subset(dataset_train_, indices_50k)
+    print("Validation samples: %d"%(len(dataset_val)))
+    # IPython.embed()
 
 
     if args.frozen_weights is not None:
@@ -268,11 +186,6 @@ def main(args):
     output_dir = Path(args.output_dir)
     # args.resume = os.path.join(os.environ["HOME"], 'datasets/exps_detr_base/checkpoint0299.pth')
     # args.resume = '/home/shuxuang/datasets/exps_detr_base/checkpoint0299.pth'
-    log_path = args.resume
-    log = os.path.join(args.resume, 'log.txt')
-    # read_log(log) 
-    # IPython.embed()
-    args.resume = os.path.join(args.resume, 'checkpoint.pth')
     print(args.resume)
     if args.resume:
         if args.resume.startswith('https'):
@@ -281,19 +194,15 @@ def main(args):
         else:
             print('Loading model: %s'%args.resume)
             checkpoint = torch.load(args.resume, map_location='cpu')
-        print('Load model from %d epoch' % checkpoint['epoch'])
+        print('Load model from %d epoch' % (checkpoint['epoch']+1))
         model_without_ddp.load_state_dict(checkpoint['model'])
 
     if args.eval:
-        # vis_bboxes(model, dataset_val, postprocessors, device)
-        inference_time(model, dataset_val, postprocessors, device)
+        # if args.dataset_file=='nvdata':
+        #     evaluate(model, dataset_val, postprocessors, device)
+        # else:
+            evaluate_5classes(model, dataset_val, postprocessors, device)
     return model, dataset_val, postprocessors, device
-
-def generate_indices():
-    # indices_50k =np.load(os.path.join(args.root_indices))
-    indices_100k = None
-
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script', parents=[get_args_parser()])
@@ -303,12 +212,9 @@ if __name__ == '__main__':
     main(args)
 
 
-# CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:eval_vis -- --eval --resume /home/shuxuang/experiments/detr_results/20201207/baseline_100
+# test:
+# CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:eval_5classes -- --eval --resume /home/shuxuang/experiments/detr_results/forward_center_5classes/pretrain_150epoch_bs4/checkpoint.pth --camera forward_center
 
-# CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:eval_vis -- --eval --resume /home/shuxuang/experiments/detr_results/20201207/baseline_100
-# If change the resume path to the model, then change 
-#  - the title of the loss figure, 
-#  - the name of the saved loss figure file 
-#  - the name of samples in eval_dlav_vis.
-
-# CUDA_VISIBLE_D0VICES=1 dazel run //sandbox/williamz/detr:eval_vis -- --eval --resume /home/shuxuang/experiments/detr_results/20201207/baseline_100/ --num_queries 100 --camera full
+# get info:
+# maglev workflows get 0cf25940-3f00-5c2c-a8e8-1571e986513b
+# maglev volumes mount -n train-outputs  -v 4977fea-0998-4d5b-b557-ff17605f2098 -p /home/shuxuang/experiments/train_output

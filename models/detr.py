@@ -350,6 +350,8 @@ def build(args):
     #     num_classes = 250
     if args.dataset_file == "nvdata":
         num_classes = 10
+    elif args.dataset_file == "nvdata_5classes":
+        num_classes = 5
     print("%s data has %d foreground classes"%(args.dataset_file, num_classes))
     device = torch.device(args.device)
 

@@ -30,6 +30,21 @@ py_library(
 )
 
 py_library(
+    name = "nvidia_5classes",
+    srcs = ["nvidia_5classes.py"],
+    deps = [
+        "//moduluspy/modulus/multi_task_loader",
+        "//sandbox/williamz/detr/datasets:transforms",
+        "//sandbox/williamz/detr/datasets:nvidia_utils",
+        requirement("matplotlib"),
+        requirement("numpy"),
+        requirement("opencv-python"),
+        requirement("torch"),
+        requirement("ipython"),
+    ],
+)
+
+py_library(
     name = "subset_sequential_sampler",
     srcs = ["subset_sequential_sampler.py"],
     deps = [

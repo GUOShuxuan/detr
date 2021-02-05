@@ -172,7 +172,7 @@ def main(args):
 
     dataset_train = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
                                      mode='train', camera=args.camera)
-    dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
+    dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_test], 
                                   mode='test', camera=args.camera)
     if args.root_indices is not None:
         indices_50k =np.load(os.path.join(args.root_indices))
@@ -245,7 +245,7 @@ def main(args):
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
             # extra checkpoint before LR drop and every 100 epochs
-            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 100 == 0:
+            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 50 == 0:
                 checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
             for checkpoint_path in checkpoint_paths:
                 utils.save_on_master({

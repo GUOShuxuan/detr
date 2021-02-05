@@ -22,8 +22,8 @@ import util.misc as utils
 from sandbox.williamz.detr.engine import train_one_epoch
 from sandbox.williamz.detr.models import build_model
 from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
-from sandbox.williamz.detr.eval_dlav_metrics import evaluate
-
+from sandbox.williamz.detr.eval_dlav_metrics import evaluate, evaluate_5classes
+# from sandbox.williamz.detr.eval_dlav_metrics_config import evaluate
 import IPython
 
 
@@ -158,9 +158,13 @@ def main(args):
     #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
     #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
     #                                 mode='train')
+    # dataset_val = build_nvdataset(dataset_root=[
+    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
+    #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+    #                               mode='test', camera=args.camera)
     dataset_val = build_nvdataset(dataset_root=[
                                     os.path.join(os.environ["HOME"],'datasets/test'), 
-                                    os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+                                    os.path.join(os.environ["HOME"],'datasets/test')], 
                                   mode='test', camera=args.camera)
     # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
     # # on maglev
@@ -194,7 +198,10 @@ def main(args):
         model_without_ddp.load_state_dict(checkpoint['model'])
 
     if args.eval:
-        evaluate(model, dataset_val, postprocessors, device)
+        # if args.dataset_file=='nvdata':
+        #     evaluate(model, dataset_val, postprocessors, device)
+        # else:
+            evaluate_5classes(model, dataset_val, postprocessors, device)
     return model, dataset_val, postprocessors, device
 
 if __name__ == '__main__':

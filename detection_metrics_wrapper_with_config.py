@@ -28,6 +28,9 @@ from dlav.metrics.detection.process.database_marshaller import create_secondary_
 from dlav.metrics.detection.report.detection_results import DetectionResults
 from dlav.metrics.detection.utilities.utils import hash_key
 
+from dlav.metrics.detection.data.drivenet_metrics_database import INT_TO_TRUNC
+from dlav.metrics.detection.data.yaml_types import EvaluationBucket
+
 log = logging.getLogger(__name__)
 
 
@@ -39,7 +42,7 @@ class DetectionMetricsWrapper(dm.DetectionMetrics):
 
     def __init__(
             self, database=None, detections=None, groundtruths=None, images=None,
-            configuration=None):
+            configuration=None, evaluation_config=None):
         """
         Construct a DetectionMetrics wrapper.
 
@@ -76,7 +79,7 @@ class DetectionMetricsWrapper(dm.DetectionMetrics):
         devkit_dataset = self._load_dataset(database)
         # try to infer what the configuration might be if the user doesn't give us one:
         configuration = configuration if configuration is not None else \
-            self.default_configuration(devkit_dataset)
+            self.default_configuration(devkit_dataset, evaluation_config)
         devkit_configuration = self._build_configuration(configuration)
 
         super(DetectionMetricsWrapper, self).__init__(
@@ -114,7 +117,7 @@ class DetectionMetricsWrapper(dm.DetectionMetrics):
         return dataset
 
     @staticmethod
-    def default_configuration(dat, dontcare_labels=('dontcare',)):
+    def default_configuration(dat, evaluation_config, dontcare_labels=('dontcare',)):
         """Return the EvaluationSettings object as default configuration.
 
         A class category will be created for all class names visible in the detection set, matching
@@ -152,9 +155,25 @@ class DetectionMetricsWrapper(dm.DetectionMetrics):
                 detection_labels=tuple(unmatched_detection_categories),
                 groundtruth_labels=tuple(unmatched_groundtruth_categories))
 
-        # TODO(drendleman): we should also guess weight_height, image_size, and cvip_are 
+        # TODO(drendleman): we should also guess weight_height, image_size, and cvip_are
+        ip_iou_threshold = None
+        if evaluation_config is not None:
+            if evaluation_config.ip_params is not None:
+                if evaluation_config.ip_params.enable:
+                    # Hardcoded and not exposed as a configurable until further notice.
+                    ip_iou_threshold = 0.05
         return EvaluationSettings(
-            class_categories=class_groups, dontcare_classes=dontcare_labels)
+            recompute_detection_in_path=False,
+            recompute_detection_weights=False,
+            # class_importance_weights=_convert_importance_weights(evaluation_config),
+            class_categories=class_groups,
+            evaluation_buckets=_convert_buckets(evaluation_config),
+            # num_metrics_curve_points=NUM_CONFIDENCE_POINTS,
+            ip_params=evaluation_config.ip_params,
+            ip_iou_threshold=ip_iou_threshold,
+        )
+        # return EvaluationSettings(
+        #     class_categories=class_groups, dontcare_classes=dontcare_labels)
 
     @classmethod
     def _build_configuration(cls, configuration):
@@ -709,3 +728,30 @@ class DetectionMetricsWrapper(dm.DetectionMetrics):
             metrics=self,
             sql_database=self.__sql_database,
             configuration=self.__configuration)
+
+def _convert_buckets(evaluation_config):
+    """Derive a dictionary of EvaluationBucket objects from an EvaluationConfig object.
+    Args:
+        evaluation_config: EvaluationConfig object.
+    Returns:
+        evaluation_buckets: a dictionary of EvaluationBucket objects.
+    """
+    def transform(bucket):
+        kwargs = {}
+        kwargs['is_weighted'] = bucket.is_weighted
+        kwargs['min_height'] = bucket.minimum_height
+        kwargs['max_height'] = bucket.maximum_height
+        kwargs['min_occlusion'] = bucket.minimum_occlusion
+        kwargs['max_occlusion'] = bucket.maximum_occlusion
+        if bucket.truncation_type is not None:
+            kwargs['min_truncation_type'] = INT_TO_TRUNC[bucket.truncation_type.minimum]
+            kwargs['max_truncation_type'] = INT_TO_TRUNC[bucket.truncation_type.maximum]
+        elif bucket.truncation is not None:
+            kwargs['min_truncation'] = bucket.truncation.minimum
+            kwargs['max_truncation'] = bucket.truncation.maximum
+        return EvaluationBucket(**kwargs)
+    # Return an OrderedDict here so that the metrics app knows we want these in a specific ordering.
+    # The protobuf's ordering is not consistent.
+    return OrderedDict(
+        (name, transform(bucket)) for name, bucket in
+        sorted(evaluation_config.evaluation_bucket_config.items()))

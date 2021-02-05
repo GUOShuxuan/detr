@@ -14,32 +14,18 @@ defaults:
       - name: d3l-detection-f-train
         version: 2020-03-10-16-13-7945
         mountPath: /drivenet_2
-      - name: train-outputs
-        version: 198a63af-3715-4fb2-8e54-13fcc457c114
-        mountPath: /labeled_dir
       - name: detection-f-US-KPI
         version: 2020-06-03-14-33-5dd3
         mountPath: /dataset
 
 tasks:
-- name: detr-train-8gpus-baseline-nvdatanorm-nottorgb-150epochs-front-camera-full-pytorch1.7-nopretrained
+- name: detr-train-8gpus-baseline-150epochs-front-camera-full-5classes-pretrained-bs8
   completions: 1
   env:
     MAGLEV_MULTIGPU_MODE: none
   gpus: 8
   ## baseline
-  command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main
-    --num_queries 100
-    --epochs 150
-    --lr_drop 100
-    --dataset_root_sql /drivenet_1
-    --dataset_root_img /drivenet_2
-    --dataset_root_test /dataset
-    --output_dir /out
-    --batch_size 2
-    --camera forward_center"
-  ## amp - baseline with bs 2
-  # command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main_amp
+  # command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main
   #   --num_queries 100
   #   --epochs 150
   #   --lr_drop 100
@@ -47,9 +33,21 @@ tasks:
   #   --dataset_root_img /drivenet_2
   #   --dataset_root_test /dataset
   #   --output_dir /out
+  #   --num_workers 2
   #   --batch_size 2
-  #   --camera forward_center
-  #   --amp"
+  #   --camera forward_center"
+  ## amp - baseline with bs 2
+  command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main_5classes
+    --num_queries 100
+    --epochs 150
+    --lr_drop 100
+    --dataset_root_sql /drivenet_1
+    --dataset_root_img /drivenet_2
+    --dataset_root_test /dataset
+    --output_dir /out
+    --batch_size 8
+    --num_workers 8
+    --camera forward_center "
   # amp - baseline with bs 4
   # command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main_amp
   #   --num_queries 100
@@ -70,4 +68,6 @@ tasks:
 
 # here we used all 200,516 training samples with forward_center camera view
 # dazel run //sandbox/williamz/detr/workflows:train_detr_8gpus_front_camera_full -- -e maglev --remote_registry ngc
-#  dazel run //sandbox/williamz/detr/workflows:train_detr_8gpus_front_camera_full_150epochs -- -e maglev --remote_registry ngc
+#  dazel run //sandbox/williamz/detr/workflows:train_detr_8gpus_front_camera_full_150epochs_5classes -- -e maglev --remote_registry ngc
+
+# https://maglev-prod-sjc4.nvda.ai/workflows/workflow/wf1-conv-maglev-workflow-9gt5s-1deae288-d692-5fbd-9e5e-a635f874413f
