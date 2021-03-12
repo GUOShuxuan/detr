@@ -19,8 +19,12 @@ py_library(
     deps = [
         ":position_encoding",
         "//sandbox/williamz/detr/util:misc",
+       # from sandbox.ptpoc.utils import deserialize_object, load_spec
+        "//sandbox/ptpoc/utils",
+        "//sandbox/ptpoc",
         requirement("torch"),
         requirement("torchvision"),
+        requirement('ipython'),
     ],
 )
 

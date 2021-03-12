@@ -14,14 +14,14 @@ import os
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, DistributedSampler, Subset
+from torch.utils.data import DataLoader, DistributedSampler, Subset, ConcatDataset
 
 import datasets
 import util.misc as utils
 # from datasets import get_coco_api_from_dataset
 from sandbox.williamz.detr.engine import train_one_epoch
 from sandbox.williamz.detr.models import build_model
-from sandbox.williamz.detr.datasets.nvidia_5classes import build_nvdataset
+from sandbox.williamz.detr.datasets.nvidia_5classes import build_nvdataset, build_nvdataset_large
 from sandbox.williamz.detr.eval_dlav_metrics import evaluate
 
 import IPython
@@ -91,9 +91,15 @@ def get_args_parser():
     # dataset parameters
     parser.add_argument('--dataset_file', default='nvdata_5classes')
     # parser.add_argument('--coco_path', type=str)
-    parser.add_argument('--dataset_root_sql', type=str)
-    parser.add_argument('--dataset_root_img', type=str)
-    parser.add_argument('--dataset_root_test', type=str) 
+    parser.add_argument('--dataset_root_sql', type=str, default=None)
+    parser.add_argument('--dataset_root_sql_3', type=str, default=None)
+    parser.add_argument('--dataset_root_sql_4', type=str, default=None)
+    parser.add_argument('--dataset_root_sql_5', type=str, default=None)
+    parser.add_argument('--dataset_root_sql_6', type=str, default=None)
+    parser.add_argument('--dataset_root_sql_7', type=str, default=None)
+
+    parser.add_argument('--dataset_root_img', type=str, default=None)
+    parser.add_argument('--dataset_root_test', type=str, default=None) 
     parser.add_argument('--root_indices', type=str, default=None)
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--camera', type=str, default='full')
@@ -110,6 +116,9 @@ def get_args_parser():
     parser.add_argument('--eval', action='store_true')
     parser.add_argument('--num_workers', default=2, type=int)
 
+    ## for autonet
+    parser.add_argument('--auto_checkpoint', type=str, default='sandbox/williamz/detr/res_autonet/final_epoch.checkpoint') #'sandbox/williamz/detr/res_autonet/final_epoch.checkpoint'
+    parser.add_argument('--training_spec', type=str, default='sandbox/williamz/detr/res_autonet/autonet_training_spec.yaml')
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
@@ -132,7 +141,6 @@ def main(args):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    # IPython.embed()
     # IPython.embed()
     # os.system("sudo chmod -R 777 /home/shuxuang/.cache/")
     model, criterion, postprocessors = build_model(args) # use the same model as detr paper on coco
@@ -160,51 +168,93 @@ def main(args):
     # dataset_val = build_dataset(image_set='val', args=args)
     # modify the dataset from coco to nvdata
     # home_dir = os.environ["HOME"]
-    # dataset_train = build_nvdataset(dataset_root=[
-    #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
+    # dataset_train = build_nvdataset_large(dataset_root=[
+    #                                     os.path.join(os.environ["HOME"],'datasets/largeset'),  #annotation_sql_nvidia
     #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
     #                                 mode='train', camera=args.camera)
+    # IPython.embed()
+    ############--------- for analyse datasets ------
+    # folders = ['detection-f', 'detection-f-japan', 'largeset', 'detection-f-ppl-cyclist-120', 'detection-f-vru-at-night', 
+    #             'detection-f-vru-at-night-al', 'detection-f-vru-night', 'detection-f-vru-closeup', 'detection-f-NCAP']
+    # for folder in folders:
+    #     dataset_file = os.path.join(os.environ["HOME"],f'datasets/{folder}')
+    #     dataset_train_full = build_nvdataset_large(dataset_root=[dataset_file
+    #                                         ,  #annotation_sql_nvidia
+    #                                         os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+    #                                     mode='train', camera='full')
+    #     dataset_train_fc = build_nvdataset_large(dataset_root=[dataset_file
+    #                                         ,  #annotation_sql_nvidia
+    #                                         os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+    #                                     mode='train', camera='forward_center')
+    #     print(f'{folder}: full: {len(dataset_train_full)}, fc: {len(dataset_train_fc)}')
+
+    # raise ImportError
+    ############--------- for analyse datasets ------ end 
+    ############--------- for analyse datasets ------ end 
     # dataset_val = build_nvdataset(dataset_root=[
     #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
     #                                 os.path.join(os.environ["HOME"],'datasets/test')], 
     #                               mode='test', camera=args.camera)
     # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
-
-    dataset_train = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
-                                     mode='train', camera=args.camera)
-    dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_test], 
-                                  mode='test', camera=args.camera)
+    # dataset_file = os.path.join(os.environ["HOME"],f'datasets/largeset}')
+    if args.dataset_root_sql == args.dataset_root_img:
+        dataset_train = build_nvdataset_large(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
+                                        mode='train', camera=args.camera)
+        if args.dataset_root_sql_3 is not None and os.path.isdir(args.dataset_root_sql_3):
+            dataset_train_3 = build_nvdataset_large(dataset_root=[args.dataset_root_sql_3,  args.dataset_root_sql_3],
+                                        mode='train', camera=args.camera)
+            if args.dataset_root_sql_4 is not None and os.path.isdir(args.dataset_root_sql_4):
+                dataset_train_4 = build_nvdataset_large(dataset_root=[args.dataset_root_sql_4,  args.dataset_root_sql_4],
+                                        mode='train', camera=args.camera)
+                if args.dataset_root_sql_5 is not None and os.path.isdir(args.dataset_root_sql_5):
+                    dataset_train_5 = build_nvdataset_large(dataset_root=[args.dataset_root_sql_5,  args.dataset_root_sql_5],
+                                        mode='train', camera=args.camera)
+                    if args.dataset_root_sql_6 is not None and os.path.isdir(args.dataset_root_sql_6):
+                        dataset_train_6 = build_nvdataset_large(dataset_root=[args.dataset_root_sql_6,  args.dataset_root_sql_6],
+                                        mode='train', camera=args.camera)
+                        if args.dataset_root_sql_7 is not None and os.path.isdir(args.dataset_root_sql_7):
+                            dataset_train_7 = build_nvdataset_large(dataset_root=[args.dataset_root_sql_7,  args.dataset_root_sql_7],
+                                        mode='train', camera=args.camera)
+                            dataset_train = [dataset_train, dataset_train_3, dataset_train_4, dataset_train_5, dataset_train_6, dataset_train_7]
+                        else:
+                            dataset_train = [dataset_train, dataset_train_3, dataset_train_4, dataset_train_5, dataset_train_6]
+                    else:
+                        dataset_train = [dataset_train, dataset_train_3, dataset_train_4, dataset_train_5]
+                else:
+                    dataset_train = [dataset_train, dataset_train_3, dataset_train_4]
+            else:
+                dataset_train = [dataset_train, dataset_train_3]
+    else:
+        dataset_train = build_nvdataset(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
+                                        mode='train', camera=args.camera)
+    # dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_test], 
+    #                               mode='test', camera=args.camera)
     if args.root_indices is not None:
         indices_50k =np.load(os.path.join(args.root_indices))
         # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
+        # for forward_center: 
+        # indices_50k = np.load(os.path.join(os.environ["HOME"],'datasets/indices_fc_50000.npy'))
         dataset_train = Subset(dataset_train, indices_50k)
     # IPython.embed()
+    if isinstance(dataset_train, list):
+        dataset_train = ConcatDataset(dataset_train)
+
     print("Train samples: %d"%(len(dataset_train)))
+    # IPython.embed()
+    # if dataset_train is list:
+    #     dataset_train = ConcatDataset(dataset_train)
 
     if args.distributed:
         sampler_train = DistributedSampler(dataset_train)
-        sampler_val = DistributedSampler(dataset_val, shuffle=False)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
-        sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
 
     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                    collate_fn=utils.collate_fn, num_workers=args.num_workers)
-    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
 
-    # if args.dataset_file == "coco_panoptic":
-    #     # We also evaluate AP during panoptic training, on original coco DS
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # elif args.dataset_file == "nvdata":
-    #     coco_val = datasets.coco.build("val", args)
-    #     base_ds = get_coco_api_from_dataset(coco_val)
-    # else:
-    #     base_ds = get_coco_api_from_dataset(dataset_val)
 
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
@@ -222,16 +272,6 @@ def main(args):
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
-
-    # if args.eval:
-    #     test_stats, coco_evaluator = evaluate_nvdata(model, criterion, postprocessors,
-    #                                           data_loader_val, base_ds, device, args.output_dir)
-    #     if args.output_dir:
-    #         utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
-    #     return
-
-    # if args.eval:
-    #     evaluate(model, dataset_val, postprocessors, device)
 
     print("Start training")
     start_time = time.time()
@@ -303,3 +343,5 @@ if __name__ == '__main__':
 # run on: CUDA_VISIBLE_DEVICES=1 dazel run //sandbox/williamz/detr:main -- --batch_size 4 --dilation --output_dir /home/shuxuang/experiments/detr_dc5_50k_bs4/
 
 # dazel run //sandbox/williamz/detr/workflows:train_detr -- -e maglev --remote_registry ngc
+
+# dazel run //sandbox/williamz/detr:main_5classes -- --batch_size 2  --camera forward_center --dataset_root_sql /home/shuxuang/datasets/detection-f --dataset_root_img /home/shuxuang/datasets/detection-f --dataset_root_sql_3 /home/shuxuang/datasets/largeset --dataset_root_sql_4 /home/shuxuang/datasets/detection-f-ppl-cyclist

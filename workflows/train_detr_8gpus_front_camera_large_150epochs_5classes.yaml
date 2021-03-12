@@ -11,15 +11,15 @@ defaults:
       - name: split-outputs
         version: 8493af65-a8ff-5489-b876-d2695b855014
         mountPath: /drivenet_1
-      - name: d3l-detection-f-train
-        version: 2020-03-10-16-13-7945
+      - name: detection-f-diverse-US
+        version: 2020-06-03-14-33-c531
         mountPath: /drivenet_2
       - name: detection-f-US-KPI
         version: 2020-06-03-14-33-5dd3
         mountPath: /dataset
-
+# maglev volumes mount -n detection-f-diverse-US -v 2020-06-03-14-33-c531 -p ~/datasets/largeset
 tasks:
-- name: detr-train-8gpus-baseline-150epochs-front-camera-full-5classes-pretrained-bs4-608-960
+- name: detr-train-8gpus-baseline-150epochs-front-camera-large-data-5classes-pretrained-bs4 #-604-960
   completions: 1
   env:
     MAGLEV_MULTIGPU_MODE: none
@@ -36,12 +36,12 @@ tasks:
   #   --num_workers 2
   #   --batch_size 2
   #   --camera forward_center"
-  ## amp - baseline with bs 2
+  ## amp - baseline with bs ]2
   command: bash -euxo pipefail -c "python -m torch.distributed.launch --nproc_per_node=8 --use_env sandbox/williamz/detr/main_5classes
     --num_queries 100
     --epochs 150
     --lr_drop 100
-    --dataset_root_sql /drivenet_1
+    --dataset_root_sql /drivenet_2
     --dataset_root_img /drivenet_2
     --dataset_root_test /dataset
     --output_dir /out

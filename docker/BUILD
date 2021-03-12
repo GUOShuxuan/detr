@@ -1,7 +1,8 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-load("//ci/runtime_resources:extension.bzl", "buildifier_test")
+# load("//ci/runtime_resources:extension.bzl", "buildifier_test")
 
-package(default_visibility = ["//sandbox/williamz:__subpackages__"])
+# package(default_visibility = ["//sandbox/williamz:__subpackages__"])
+package(default_visibility = ["//sandbox:__subpackages__"])
 
 # Docker / launcher related stuff.
 load("//maglev_sdk/docker_container:rules.bzl", "container_image_py")
@@ -24,6 +25,12 @@ APPS = [
 py_layer(
     name = "detr_layer",
     filter = "//sandbox/williamz/detr/",
+    deps = APPS,
+)
+
+py_layer(
+    name = "ptpoc_layer",
+    filter = "//sandbox/ptpoc/",
     deps = APPS,
 )
 
@@ -51,4 +58,4 @@ launcher_run(
     image = ":image",
 )
 
-buildifier_test()
+# buildifier_test()

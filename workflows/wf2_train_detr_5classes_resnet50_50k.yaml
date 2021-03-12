@@ -1,0 +1,111 @@
+version: 2
+schedule: '@once'
+taskFailAction: stop-branch
+fail: any-job
+
+# Defaults.
+anchor-base: &DEFAULTS
+  # image: bazel/sandbox/williamz/detr/docker:image
+  local_image: bazel/sandbox/williamz/detr/docker:image
+  group: all
+  cache: disable
+
+tasks:
+- name: detr-train-300epochs-resnet50-pretrain-50k-jw
+  <<: *DEFAULTS
+  inputs:
+  - volume:
+      name: split-outputs
+      version: 8493af65-a8ff-5489-b876-d2695b855014
+    prefix: /drivenet_1
+  - volume:
+      name: d3l-detection-f-train
+      version: 2020-03-10-16-13-7945
+    prefix: /drivenet_2
+  - volume:
+      name: detection-f-US-KPI
+      version: 2020-06-03-14-33-5dd3
+    prefix: /dataset
+  - volume:
+      name: train-outputs
+      version: 198a63af-3715-4fb2-8e54-13fcc457c114
+    prefix: /labeled_dir
+  command: /bin/bash 
+  args: 
+    - -euxo
+    - pipefail
+    - -c
+    - python -m torch.distributed.launch --nproc_per_node=8 --master_port=-27000
+      --use_env sandbox/williamz/detr/main_5classes
+      --backbone resnet50
+      --num_queries 100
+      --epochs 300
+      --lr_drop 200
+      --dataset_root_sql {{input}}/drivenet_1
+      --dataset_root_img {{input}}/drivenet_2
+      --dataset_root_test {{input}}/dataset
+      --output_dir {{output}}/out
+      --batch_size 2
+      --num_workers 2
+      --camera forward_center
+      --auto_checkpoint None
+      --root_indices {{input}}/labeled_dir/labeled_sets/id_1_criterion_Max_SSD_num_labels_50000.npy
+  workerPool: train 
+  group: all
+
+workerPools:
+- name: train
+  workers: 1
+  cpu: 60
+  gpu: 8
+  mem: 300G
+  # Make sure we're running on perf node.
+  nodeConstraints:
+    required:
+      nodeType: dgx1v.16gb.perf # cannot be dgx1v.32gb ==> OOM
+
+# --root_indices sandbox/williamz/detr/res_autonet/indices_fc_50000.npy
+# with local_image
+# dazel run //sandbox/williamz/detr/workflows:wf2_train_detr_5classes -- -e maglev --remote_registry ngc --resource-share perception-autonet -- --wf2 --multi_gpu_mode none
+
+# with image: not local_image: 
+  #  maglev workflows2 run -f sandbox/williamz/detr/workflows/wf2_train_detr_5classes.yaml --local
+
+# dgx1v.16gb.perf hard to request
+# maglev node-constraints list -n -r  perception-autonet
+# NODE TYPE          DESCRIPTION
+# cpu                'cpu' node of any variant
+# dgx                'dgx' node of any variant
+# dgx1v              'dgx' server with 'dgx1v' coarse grained variant of node
+# dgx1v.16gb         'dgx' server with 'dgx1v' coarse grained variant of node, '16gb' GPU memory
+# dgx1v.16gb.perf    'dgx' server with 'dgx1v' coarse grained variant of node, '16gb' GPU memory, 'perf' performance variant(GPU power capabilities)
+# dgx1v.32gb         'dgx' server with 'dgx1v' coarse grained variant of node, '32gb' GPU memory
+# dgx1v.32gb.norm    'dgx' server with 'dgx1v' coarse grained variant of node, '32gb' GPU memory, 'norm' performance variant(GPU power capabilities)
+# dgx1v.32gb.perf    'dgx' server with 'dgx1v' coarse grained variant of node, '32gb' GPU memory, 'perf' performance variant(GPU power capabilities)
+# python -m torch.distributed.launch --nproc_per_node=8 
+      # --use_env 
+      
+          # - -euxo
+    # - pipefail
+    # # - -c
+    # - -euxc
+    # # - python -m torch.distributed.launch --nproc_per_node=8
+    # - |
+    #   python -c "from torch.distributed import launch; launch.main();" --nproc_per_node=8 sandbox/williamz/detr/main_5classes
+    #   --num_queries 100
+    #   --epochs 150
+    #   --lr_drop 100
+    #   --dataset_root_sql {{input}}/drivenet_2
+    #   --dataset_root_img {{input}}/drivenet_2
+    #   --dataset_root_test {{input}}/dataset
+    #   --output_dir {{output}}/out
+    #   --batch_size 2
+    #   --num_workers 2
+    #   --camera forward_center
+# generate indices:
+# import numpy as np
+# import os
+# indices_50k_fc = np.random.randint(200516, size=50000) # duplicate
+# indices_50k_fc = np.random.choice(range(200516), 50000, replace=False) This is true without duplications
+# with open(os.path.join(os.environ["HOME"],'datasets/indices_fc_50000.npy'), 'wb') as f:
+    # np.save(f, indices_50k_fc)

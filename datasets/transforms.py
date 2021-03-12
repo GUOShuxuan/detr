@@ -97,6 +97,7 @@ def resize(image, target, size, max_size=None):
         return (oh, ow)
 
     def get_size(image_size, size, max_size=None):
+        # print(size)
         if isinstance(size, (list, tuple)):
             return size[::-1]
         else:
@@ -195,7 +196,10 @@ class RandomResize(object):
         self.max_size = max_size
 
     def __call__(self, img, target=None):
-        size = random.choice(self.sizes)
+        if isinstance(self.sizes, (list,)):
+            size = random.choice(self.sizes)
+        else: 
+            size = self.sizes
         return resize(img, target, size, self.max_size)
 
 

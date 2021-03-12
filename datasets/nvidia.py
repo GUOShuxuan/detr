@@ -358,11 +358,11 @@ def make_coco_transforms(image_set):
 
     if image_set == 'test':
         print("604 960") # ?608 604?
-        print("800 1333")
+        # print("800 1333")
         return T.Compose([
             # 608 also the same test setting in drivenet  # 604*960 ==> 608*967 still not same as drivenet
-            # T.RandomResize([608], max_size=1000), #800 1333, 604 960, not604, should be 608 as before 
-            T.RandomResize([800], max_size=1333),   # 604*960 ==> 800*1272
+            T.RandomResize([604], max_size=960), #800 1333, 604 960, not604, should be 608 as before 
+            # T.RandomResize([800], max_size=1333),   # 604*960 ==> 800*1272
             normalize,
         ])
 

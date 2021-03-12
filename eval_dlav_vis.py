@@ -145,116 +145,119 @@ def vis_bboxes(model, dataset, postprocessors, device, out_dir=None):
     # sample_set = [2000]
     time = 0
     for i in sample_set:  # need to implement returning the length of the dataset #len(dataset)
+    # for i in range(len(dataset)):
+        # if i % 2000 == 0:
 
-        # print("Processing Image %d out of %d" % (i, len(sample_set)))
-        # image is a CHW tensor.
-        # target is a [num_objects, 5] numpy.array, where the 5 values are
-        # [L, T, R, B, class_index].
-        # image, target = dataset.pull_item(i)
-        # IPython.embed()
-        orig_img, image, ori_target, target = dataset.pull_item(i, mode='vis') # orig_img rgb
-        IPython.embed()
-        
-        # Add batch dimension (unfortunately singular now...).
-        image = image.to(device)
-        # target = target.to(device)
-
-        # predictions is a [num_classes, max_detections, 5] tensor.
-        # The last dimension represents [score, left, top, right, bottom].
-        # predictions = model(image).squeeze(dim=0)
-        outputs = model(image.unsqueeze(0))
-        # outputs['pred_boxes'], outputs['pred_logits']
-        # orig_target_sizes = target["orig_size"]
-        # results = postprocessors['bbox'](outputs, orig_target_sizes) # [tensor([604, 960])]
-        orig_target_sizes = torch.stack([t["orig_size"] for t in [target]], dim=0)
-        results = postprocessors['bbox'](outputs, orig_target_sizes.to(device)) 
-        #  results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
-        # ? what are they in results?
-        # Translate to image space coordinates.
-        # len_boxes = target['boxes'].size(0)
-        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
-            len_prediction = model.module.num_queries 
-        else:
-            len_prediction = model.num_queries 
-        predictions = torch.zeros((len_prediction, 6))
-   
-        predictions[..., 2:6] = results[0]['boxes']
-        # # _, pred_cls = results[0]['scores'].max(1)
-        predictions[..., 1] = results[0]['scores']
-        predictions[..., 0] = results[0]['labels']
-
-        # add a threshold to keep predictions with high confidence
-        score_threshold = 0.8
-        mask = predictions[..., 1] > score_threshold
-        predictions = predictions[mask]
-        
-        # predictions  len_prediction*[labels, score, box]
-        print("ImageID: %d, #GT_boxes: %d,  #Pred_boxes: %d"%(i, ori_target.shape[0], predictions.size(0)))
-        # plot_gts(orig_img, ori_target[:,-1], ori_target[:, :4],
-        #         "/home/shuxuang/experiments/demos/detr_results/img_gt_%d_n%d.jpg"%(i, ori_target.shape[0]))
-        # #prob, labels, boxes, out_img
-        # plot_results(orig_img, predictions[..., 1], predictions[..., 0], predictions[..., 2:6],
-        #             "/home/shuxuang/experiments/demos/detr_results/img_pred_q100_%d_n%d.jpg"%(i, predictions.size(0)))
-
-        plot_gts_results(orig_img, predictions[..., 1], predictions[..., 0], predictions[..., 2:6],
-                        ori_target[:,-1], ori_target[:, :4], 
-                        "/home/shuxuang/experiments/demos/detr_results/hc_08/forward_center/img_q100_300epochs_rgb_hc_%d.jpg"%(i))
-        # IPython.embed()
-        # compute mAP for each image
-        frames, labels, detections = [], [], []
-        frames.append(str(i))
-        labels += _get_frame_labels(i, ori_target) #gt_truth is correct with (x1, y1, x2, y2)
-        
-        # Skip class_index = num_classes, since it's no object according to the training data.
-        start_det_idx = 0
-        for class_index in range(0, 11-1): 
-            # class prediction is a [max_detections, 5] tensor.
-            cls_mask = predictions[...,0] == class_index
-            class_predictions = predictions[cls_mask][..., 1:6]
+            # print("Processing Image %d out of %d" % (i, len(sample_set)))
+            # image is a CHW tensor.
+            # target is a [num_objects, 5] numpy.array, where the 5 values are
+            # [L, T, R, B, class_index].
+            # image, target = dataset.pull_item(i)
+            # IPython.embed()
+            orig_img, image, ori_target, target = dataset.pull_item(i, mode='vis') # orig_img rgb
+            # IPython.embed()
             
-            ## Is this a must-do?
-            # class_predictions, _ = class_predictions.sort(0, descending=True) # decending, keep the predictions score from large to small
-            # fixed on 12.10.2020
-            if class_predictions.size(0)>0:
-                class_predictions  = torch.stack(sorted(class_predictions, key=lambda class_predictions: -class_predictions[0]))
-            # First, keep only predictions whose score is strictly greater than 0.0.
+            # Add batch dimension (unfortunately singular now...).
+            image = image.to(device)
+            # target = target.to(device)
+
+            # predictions is a [num_classes, max_detections, 5] tensor.
+            # The last dimension represents [score, left, top, right, bottom].
+            # predictions = model(image).squeeze(dim=0)
+            outputs = model(image.unsqueeze(0))
+            # outputs['pred_boxes'], outputs['pred_logits']
+            # orig_target_sizes = target["orig_size"]
+            # results = postprocessors['bbox'](outputs, orig_target_sizes) # [tensor([604, 960])]
+            orig_target_sizes = torch.stack([t["orig_size"] for t in [target]], dim=0)
+            results = postprocessors['bbox'](outputs, orig_target_sizes.to(device)) 
+            #  results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
+            # ? what are they in results?
+            # Translate to image space coordinates.
+            # len_boxes = target['boxes'].size(0)
+            if isinstance(model, torch.nn.parallel.DistributedDataParallel):
+                len_prediction = model.module.num_queries 
+            else:
+                len_prediction = model.num_queries 
+            predictions = torch.zeros((len_prediction, 6))
+    
+            predictions[..., 2:6] = results[0]['boxes']
+            # # _, pred_cls = results[0]['scores'].max(1)
+            predictions[..., 1] = results[0]['scores']
+            predictions[..., 0] = results[0]['labels']
+
+            # add a threshold to keep predictions with high confidence
+            score_threshold = 0.7
+            mask = predictions[..., 1] > score_threshold
+            predictions = predictions[mask]
+            # select_bbox = ori_target[:, 4] < 5
+            # ori_target = ori_target[select_bbox]
+            # predictions  len_prediction*[labels, score, box]
+            print("ImageID: %d, #GT_boxes: %d,  #Pred_boxes: %d"%(i, ori_target.shape[0], predictions.size(0)))
+            plot_gts(orig_img, ori_target[:,-1], ori_target[:, :4],
+                    "/home/shuxuang/experiments/demos/detection-f/img_gt_%d_n%d.jpg"%(i, ori_target.shape[0]))
+            # #prob, labels, boxes, out_img
+            # plot_results(orig_img, predictions[..., 1], predictions[..., 0], predictions[..., 2:6],
+            #             "/home/shuxuang/experiments/demos/detr_results/img_pred_q100_%d_n%d.jpg"%(i, predictions.size(0)))
+
+            # plot_gts_results(orig_img, predictions[..., 1], predictions[..., 0], predictions[..., 2:6],
+            #                 ori_target[:,-1], ori_target[:, :4], 
+            #                 "/home/shuxuang/experiments/drivenet_evaluate/eval-results-vis/detr_300epochs/img_q100_300epochs_608_%d.jpg"%(i))
             # IPython.embed()
-            # ious = box_iou(class_predictions[:,1:5], torch.from_numpy(ori_target[:,0:4]).float())
-            # mask is a [max_detections] tensor.
-            mask = class_predictions[:, 0].gt(0.0)
-            class_predictions = torch.masked_select(
-                    class_predictions, mask.unsqueeze(-1)
-                ).view(-1, 5).cpu().numpy()
-            current_detections = _get_frame_detections(
-                i, class_index, class_predictions, start_det_idx
-            )
-            start_det_idx += len(current_detections)
-            detections += current_detections
-            # IPython.embed()
-        # ious = box_iou(predictions[..., 2:6], torch.Tensor(ori_target[:, :4]))
-        # (ious>0.5).sum(1)
-        # iou = box_iou(torch.Tensor(detections[17][2].bbox).view(-1, 4), torch.Tensor(labels[1][2].bbox).view(-1, 4))
-        # iou of (pred, gt)
-        ## 2000
-        # person: 16, 22: 0.5030
-        # traffic light: 19-0:0., 2: 0.5958, 4:0, 5:0,  6: 0.1231 
-        # road_sign: 17-1/3: 0
-        with MetricsDatabase.create(path=":memory:", mode="w") as db_out:
-            db_out.export_images_iter(iterator=frames, ignore_duplicates=True)
-            db_out.export_detections_iter(iterator=detections, ignore_duplicates=True)
-            db_out.export_groundtruths_iter(iterator=labels, ignore_duplicates=True)
+            # compute mAP for each image
+            frames, labels, detections = [], [], []
+            frames.append(str(i))
+            labels += _get_frame_labels(i, ori_target) #gt_truth is correct with (x1, y1, x2, y2)
+            
+            # Skip class_index = num_classes, since it's no object according to the training data.
+            start_det_idx = 0
+            for class_index in range(0, 11-1): 
+                # class prediction is a [max_detections, 5] tensor.
+                cls_mask = predictions[...,0] == class_index
+                class_predictions = predictions[cls_mask][..., 1:6]
+                
+                ## Is this a must-do?
+                # class_predictions, _ = class_predictions.sort(0, descending=True) # decending, keep the predictions score from large to small
+                # fixed on 12.10.2020
+                if class_predictions.size(0)>0:
+                    class_predictions  = torch.stack(sorted(class_predictions, key=lambda class_predictions: -class_predictions[0]))
+                # First, keep only predictions whose score is strictly greater than 0.0.
+                # IPython.embed()
+                # ious = box_iou(class_predictions[:,1:5], torch.from_numpy(ori_target[:,0:4]).float())
+                # mask is a [max_detections] tensor.
+                mask = class_predictions[:, 0].gt(0.0)
+                class_predictions = torch.masked_select(
+                        class_predictions, mask.unsqueeze(-1)
+                    ).view(-1, 5).cpu().numpy()
+                current_detections = _get_frame_detections(
+                    i, class_index, class_predictions, start_det_idx
+                )
+                start_det_idx += len(current_detections)
+                detections += current_detections
+                # IPython.embed()
+            # ious = box_iou(predictions[..., 2:6], torch.Tensor(ori_target[:, :4]))
+            # (ious>0.5).sum(1)
+            # iou = box_iou(torch.Tensor(detections[17][2].bbox).view(-1, 4), torch.Tensor(labels[1][2].bbox).view(-1, 4))
+            # iou of (pred, gt)
+            ## 2000
+            # person: 16, 22: 0.5030
+            # traffic light: 19-0:0., 2: 0.5958, 4:0, 5:0,  6: 0.1231 
+            # road_sign: 17-1/3: 0
+            with MetricsDatabase.create(path=":memory:", mode="w") as db_out:
+                db_out.export_images_iter(iterator=frames, ignore_duplicates=True)
+                db_out.export_detections_iter(iterator=detections, ignore_duplicates=True)
+                db_out.export_groundtruths_iter(iterator=labels, ignore_duplicates=True)
 
-            metrics_wrapper = DetectionMetricsWrapper(
-                database=db_out,
-                # TODO(@williamz): allow this to be passed in.
-                #configuration=evaluation_settings,
-            )
+                metrics_wrapper = DetectionMetricsWrapper(
+                    database=db_out,
+                    # TODO(@williamz): allow this to be passed in.
+                    #configuration=evaluation_settings,
+                )
 
-            results = metrics_wrapper.results()
+                results = metrics_wrapper.results()
 
-            # TODO(@williamz): investigate delegating all printing to metrics code (with possible
-            # changes upstream).
-            dm_output.print_average_precision(results)
+                # TODO(@williamz): investigate delegating all printing to metrics code (with possible
+                # changes upstream).
+                dm_output.print_average_precision(results)
 
 def inference_time(model, dataset, postprocessors, device, out_dir=None):
     """Main function."""

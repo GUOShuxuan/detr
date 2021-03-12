@@ -198,9 +198,9 @@ def main(args):
         model_without_ddp.load_state_dict(checkpoint['model'])
 
     if args.eval:
-        # if args.dataset_file=='nvdata':
-        #     evaluate(model, dataset_val, postprocessors, device)
-        # else:
+        if args.dataset_file=='nvdata':
+            evaluate(model, dataset_val, postprocessors, device)
+        else:
             evaluate_5classes(model, dataset_val, postprocessors, device)
     return model, dataset_val, postprocessors, device
 
@@ -220,3 +220,4 @@ if __name__ == '__main__':
 # get info:
 # maglev workflows get 0cf25940-3f00-5c2c-a8e8-1571e986513b
 # maglev volumes mount -n train-outputs  -v 4977fea-0998-4d5b-b557-ff17605f2098 -p /home/shuxuang/experiments/train_output
+

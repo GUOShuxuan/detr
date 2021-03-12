@@ -21,7 +21,8 @@ import util.misc as utils
 # from datasets import get_coco_api_from_dataset
 from sandbox.williamz.detr.engine import train_one_epoch
 from sandbox.williamz.detr.models import build_model
-from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
+# from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
+from sandbox.williamz.detr.datasets.nvidia_5classes import build_nvdataset
 from sandbox.williamz.detr.eval_dlav_vis import vis_bboxes, inference_time
 import matplotlib
 matplotlib.use('Agg')
@@ -92,7 +93,7 @@ def get_args_parser():
                         help="Relative classification weight of the no-object class")
 
     # dataset parameters
-    parser.add_argument('--dataset_file', default='nvdata')
+    parser.add_argument('--dataset_file', default='nvdata_5classes')
     # parser.add_argument('--coco_path', type=str)
     parser.add_argument('--dataset_root_sql', type=str)
     parser.add_argument('--dataset_root_img', type=str)
@@ -239,7 +240,7 @@ def main(args):
 
 
     dataset_val = build_nvdataset(dataset_root=[
-                                    os.path.join(os.environ["HOME"],'datasets/test'), 
+                                    os.path.join(os.environ["HOME"],'datasets/detection-f'),  #test
                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
                                   mode='test', camera=args.camera)
     # dataset_val = build_nvdataset(dataset_root=[args.dataset_root_test, args.dataset_root_sql], 
@@ -285,8 +286,8 @@ def main(args):
         model_without_ddp.load_state_dict(checkpoint['model'])
 
     if args.eval:
-        # vis_bboxes(model, dataset_val, postprocessors, device)
-        inference_time(model, dataset_val, postprocessors, device)
+        vis_bboxes(model, dataset_val, postprocessors, device)
+        # inference_time(model, dataset_val, postprocessors, device)
     return model, dataset_val, postprocessors, device
 
 def generate_indices():

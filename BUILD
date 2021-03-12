@@ -3,7 +3,7 @@
 load("@pip_deps//:requirements.bzl", "requirement")
 load(
     "//ci/runtime_resources:extension.bzl",
-    "buildifier_test",
+    #"buildifier_test",
     "py_import_test",
     "py_static_analysis",
     "pytest_test",
@@ -63,6 +63,7 @@ py_binary(
 py_binary(
     name = "main_5classes",
     srcs = ["main_5classes.py"],
+    data = ["//sandbox/williamz/detr/res_autonet:all"],
     deps = [
         ":engine", 
         ":eval_dlav_metrics", 
@@ -264,11 +265,29 @@ py_binary(
         "//sandbox/williamz/detr/util:misc",
         "//sandbox/williamz/detr/models",
         "//sandbox/williamz/detr/datasets:nvidia",
+        "//sandbox/williamz/detr/datasets:nvidia_5classes",
         requirement("torch"),
         requirement("numpy"),
         requirement("ipython"),
         requirement("matplotlib"),
     ],
+)
+
+py_library(
+    name = "detr",
+    srcs = ["__init__.py"],
+    data = ["//sandbox/williamz/detr/res_autonet:all"],
+    deps = [
+        "//sandbox/williamz/detr/util",
+        "//sandbox/williamz/detr/models",
+        "//sandbox/williamz/detr/datasets:nvidia",
+        "//sandbox/williamz/detr/datasets:nvidia_5classes",
+    ],
+)
+
+py_import_test(
+    name = "detr",
+    dotted_name = "sandbox.williamz.detr",
 )
 
 

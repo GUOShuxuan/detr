@@ -261,6 +261,7 @@ class NVIDIADetection(data.Dataset):
         select_bbox = ori_target[:, 4] < 5
         anno = {'bbox': ori_target[select_bbox, :4], 
                 'category_id': ori_target[select_bbox, 4]} # change the before 3 target to ori_target
+        ori_target_ = ori_target[select_bbox]
         image_id = index
         target = {'image_id': image_id, 'annotations': anno}
 #         print(target)
@@ -273,31 +274,20 @@ class NVIDIADetection(data.Dataset):
             img, target = self.transform(img, target)
         
         if mode == 'train':
+            # print(img.size())
             return img, target
         elif mode =='test':
             # print(img.size())
-            return img, ori_target, target
+            return img, ori_target_, target
         elif mode =='vis':
-            return orig_img, img, ori_target, target
+            print(img.size())
+            return orig_img, img, ori_target_, target
 
     
     def pull_image_and_anno(self, index):
         """Pull image and its annotation."""
         # Get an image, and its accompanying raster.
         image, boxes, class_names = self.sqlite_dataset[index]
-
-        # for visualize and debug
-        # image = image.transpose(1, 2, 0)
-        # IPython.embed(header='pull image')
-        # # print(image.shape)
-        # print('bgr test')
-        # img_bgr = np.uint8(image*255)
-        # img_bgr = img_bgr[:,:, (2,1,0)]
-        # print(
-        #     'bgr finish'
-        # )
-        # plt.imsave('/home/shuxuang/experiments/demos/img_bgr-plt-inner.jpg', img_bgr)
-        # sys.exit(0)
         assert boxes.size // 4 == len(class_names)
 
         # insert the boxes into an array of boxes with coordinates (x1, y1, x2, y2, class)
@@ -331,7 +321,6 @@ class NVIDIADetection(data.Dataset):
 
 
 def make_coco_transforms(image_set):
-
 # MEANS = (104, 117, 123) as bgr 
     normalize = T.Compose([
         T.ToTensor(),
@@ -347,6 +336,7 @@ def make_coco_transforms(image_set):
     ])
     print('NVdata Norm rgb: [0.408, 0.459, 0.482], [1., 1., 1.]')
     scales = [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+    # scales = [480, 512, 544, 576, 604, 640, 672, 704, 736, 768, 800]
 
     if image_set == 'train':
         return T.Compose([
@@ -364,10 +354,50 @@ def make_coco_transforms(image_set):
 
     if image_set == 'test':
         # print("604 960")
-        print("800 1333")
+        print("608 966")
+        # print("800 1333")
+        return T.Compose([
+            T.RandomResize([608], max_size=980), #800 1333, 604 960, not604, should be 608*966 604*960
+            # T.RandomResize([604], max_size=960),
+            # T.RandomResize([800], max_size=1333),     
+            normalize,
+        ])
+
+    raise ValueError(f'unknown {image_set}')
+
+
+def make_coco_transforms_v2(image_set):
+    ### keep only one scale as 960*608
+    normalize = T.Compose([
+        T.ToTensor(),
+        T.Normalize([0.408, 0.459, 0.482], [1., 1., 1.])
+        
+    ])
+    print('NVdata Norm rgb: [0.408, 0.459, 0.482], [1., 1., 1.]')
+    # scales = [608]
+    re_size = (608, 960)
+    if image_set == 'train':
+        print(re_size)
+        return T.Compose([
+            T.RandomHorizontalFlip(),
+            T.RandomSelect(
+                T.RandomResize(re_size),
+                T.Compose([
+                    T.RandomResize([400, 500, 600]),
+                    T.RandomSizeCrop(384, 600),
+                    T.RandomResize(re_size),
+                ])
+            ),
+            normalize,
+        ])
+
+    if image_set == 'test':
+        # print("608 960")
+        # print("800 1333")
         return T.Compose([
             # T.RandomResize([608], max_size=980), #800 1333, 604 960, not604, should be 608*966 604*960
-            T.RandomResize([800], max_size=1333),     
+            T.RandomResize((604, 960)),
+            # T.RandomResize([800], max_size=1333),     
             normalize,
         ])
 
@@ -383,8 +413,32 @@ def build_nvdataset(dataset_root, mode, camera):
             image_sets=dataset_root[0],
             # transform=SSDAugmentation(data_config["min_dim"], MEANS),
             transform=make_coco_transforms(mode),
+            # transform=make_coco_transforms_v2(mode),
             image_sets2=dataset_root[1],
+            # mode=mode, 
+            # change mode to test when using the new dataset since it has same folder as test
             mode=mode,
+            camera=camera
+        )
+
+    return dataset
+
+
+def build_nvdataset_large(dataset_root, mode, camera):
+    # root0 = Path(dataset_root[0])
+    # assert root0.exists(), f'provided NVData path {root0} does not exist'
+    # root1 = Path(dataset_root[1])
+    # assert root1.exists(), f'provided NVData path {root1} does not exist'
+    dataset = NVIDIADetection(
+            # supervised_indices=None,
+            image_sets=dataset_root[0],
+            # transform=SSDAugmentation(data_config["min_dim"], MEANS),
+            transform=make_coco_transforms(mode),
+            # transform=make_coco_transforms_v2(mode),
+            image_sets2=dataset_root[1],
+            # mode=mode, 
+            # change mode to test when using the new dataset since it has same folder as test
+            mode='test',
             camera=camera
         )
 

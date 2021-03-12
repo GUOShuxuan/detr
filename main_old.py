@@ -16,7 +16,8 @@ import util.misc as utils
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine_coco import evaluate, train_one_epoch
 from models import build_model
-from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
+# from sandbox.williamz.detr.datasets.nvidia import build_nvdataset
+# from 
 
 
 def get_args_parser():
@@ -141,20 +142,20 @@ def main(args):
                                   weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
 
-    # dataset_train = build_dataset(image_set='train', args=args)
-    # dataset_val = build_dataset(image_set='val', args=args)
+    dataset_train = build_dataset(image_set='train', args=args)
+    dataset_val = build_dataset(image_set='val', args=args)
     # modify the dataset from coco to nvdata
-    dataset_train_ = build_nvdataset(dataset_root=[
-                                        os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
-                                        os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-                                    mode='train')
-    dataset_val = build_nvdataset(dataset_root=[
-                                    os.path.join(os.environ["HOME"],'datasets/test'), 
-                                    os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-                                  mode='test')
-    indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
+    # dataset_train_ = build_nvdataset(dataset_root=[
+    #                                     os.path.join(os.environ["HOME"],'datasets/annotation_sql_nvidia'), 
+    #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+    #                                 mode='train')
+    # dataset_val = build_nvdataset(dataset_root=[
+    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
+    #                                 os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
+    #                               mode='test')
+    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
 
-    dataset_train = Subset(dataset_train_, indices_50k)
+    # dataset_train = Subset(dataset_train_, indices_50k)
 
     if args.distributed:
         sampler_train = DistributedSampler(dataset_train)
@@ -177,7 +178,7 @@ def main(args):
         base_ds = get_coco_api_from_dataset(coco_val)
     else:
         base_ds = get_coco_api_from_dataset(dataset_val)
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
     if args.frozen_weights is not None:
         checkpoint = torch.load(args.frozen_weights, map_location='cpu')
         model_without_ddp.detr.load_state_dict(checkpoint['model'])

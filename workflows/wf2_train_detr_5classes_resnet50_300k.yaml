@@ -1,0 +1,95 @@
+version: 2
+schedule: '@once'
+taskFailAction: stop-branch
+fail: any-job
+
+# Defaults.
+anchor-base: &DEFAULTS
+  # image: bazel/sandbox/williamz/detr/docker:image
+  local_image: bazel/sandbox/williamz/detr/docker:image
+  group: all
+  cache: disable
+
+tasks:
+- name: detr-train-150epochs-resnet50-pretrain-300k
+  <<: *DEFAULTS
+  inputs:
+  - volume:
+      name: detection-f-with-hazards
+      version: 2020-06-04-08-59-d1a8
+    prefix: /drivenet_data
+  - volume:
+      name: detection-f-US-KPI
+      version: 2020-06-03-14-33-5dd3
+    prefix: /dataset
+  command: /bin/bash 
+  args: 
+    - -euxo
+    - pipefail
+    - -c
+    - python -m torch.distributed.launch --nproc_per_node=8 --master_port=-27000
+      --use_env sandbox/williamz/detr/main_5classes
+      --backbone resnet50
+      --num_queries 100
+      --epochs 150
+      --lr_drop 100
+      --dataset_root_sql {{input}}/drivenet_data
+      --dataset_root_img {{input}}/drivenet_data
+      --dataset_root_test {{input}}/dataset
+      --output_dir {{output}}/out
+      --batch_size 2
+      --num_workers 2
+      --camera forward_center
+      --auto_checkpoint None
+  workerPool: train 
+  group: all
+
+workerPools:
+- name: train
+  workers: 1
+  cpu: 60
+  gpu: 8
+  mem: 300G
+  # Make sure we're running on perf node.
+  nodeConstraints:
+    required:
+      nodeType: dgx1v.16gb.perf # cannot be dgx1v.32gb ==> OOM
+
+# with local_image
+# dazel run //sandbox/williamz/detr/workflows:wf2_train_detr_5classes -- -e maglev --remote_registry ngc --resource-share perception-autonet -- --wf2 --multi_gpu_mode none
+
+# with image: not local_image: 
+  #  maglev workflows2 run -f sandbox/williamz/detr/workflows/wf2_train_detr_5classes.yaml --local
+
+# dgx1v.16gb.perf hard to request
+# maglev node-constraints list -n -r  perception-autonet
+# NODE TYPE          DESCRIPTION
+# cpu                'cpu' node of any variant
+# dgx                'dgx' node of any variant
+# dgx1v              'dgx' server with 'dgx1v' coarse grained variant of node
+# dgx1v.16gb         'dgx' server with 'dgx1v' coarse grained variant of node, '16gb' GPU memory
+# dgx1v.16gb.perf    'dgx' server with 'dgx1v' coarse grained variant of node, '16gb' GPU memory, 'perf' performance variant(GPU power capabilities)
+# dgx1v.32gb         'dgx' server with 'dgx1v' coarse grained variant of node, '32gb' GPU memory
+# dgx1v.32gb.norm    'dgx' server with 'dgx1v' coarse grained variant of node, '32gb' GPU memory, 'norm' performance variant(GPU power capabilities)
+# dgx1v.32gb.perf    'dgx' server with 'dgx1v' coarse grained variant of node, '32gb' GPU memory, 'perf' performance variant(GPU power capabilities)
+# python -m torch.distributed.launch --nproc_per_node=8 
+      # --use_env 
+      
+          # - -euxo
+    # - pipefail
+    # # - -c
+    # - -euxc
+    # # - python -m torch.distributed.launch --nproc_per_node=8
+    # - |
+    #   python -c "from torch.distributed import launch; launch.main();" --nproc_per_node=8 sandbox/williamz/detr/main_5classes
+    #   --num_queries 100
+    #   --epochs 150
+    #   --lr_drop 100
+    #   --dataset_root_sql {{input}}/drivenet_2
+    #   --dataset_root_img {{input}}/drivenet_2
+    #   --dataset_root_test {{input}}/dataset
+    #   --output_dir {{output}}/out
+    #   --batch_size 2
+    #   --num_workers 2
+    #   --camera forward_center
+  
