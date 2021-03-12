@@ -164,39 +164,6 @@ def main(args):
                                   weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
 
-    # dataset_train = build_dataset(image_set='train', args=args)
-    # dataset_val = build_dataset(image_set='val', args=args)
-    # modify the dataset from coco to nvdata
-    # home_dir = os.environ["HOME"]
-    # dataset_train = build_nvdataset_large(dataset_root=[
-    #                                     os.path.join(os.environ["HOME"],'datasets/largeset'),  #annotation_sql_nvidia
-    #                                     os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                                 mode='train', camera=args.camera)
-    # IPython.embed()
-    ############--------- for analyse datasets ------
-    # folders = ['detection-f', 'detection-f-japan', 'largeset', 'detection-f-ppl-cyclist-120', 'detection-f-vru-at-night', 
-    #             'detection-f-vru-at-night-al', 'detection-f-vru-night', 'detection-f-vru-closeup', 'detection-f-NCAP']
-    # for folder in folders:
-    #     dataset_file = os.path.join(os.environ["HOME"],f'datasets/{folder}')
-    #     dataset_train_full = build_nvdataset_large(dataset_root=[dataset_file
-    #                                         ,  #annotation_sql_nvidia
-    #                                         os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                                     mode='train', camera='full')
-    #     dataset_train_fc = build_nvdataset_large(dataset_root=[dataset_file
-    #                                         ,  #annotation_sql_nvidia
-    #                                         os.path.join(os.environ["HOME"], 'datasets/frames_nvidia')], 
-    #                                     mode='train', camera='forward_center')
-    #     print(f'{folder}: full: {len(dataset_train_full)}, fc: {len(dataset_train_fc)}')
-
-    # raise ImportError
-    ############--------- for analyse datasets ------ end 
-    ############--------- for analyse datasets ------ end 
-    # dataset_val = build_nvdataset(dataset_root=[
-    #                                 os.path.join(os.environ["HOME"],'datasets/test'), 
-    #                                 os.path.join(os.environ["HOME"],'datasets/test')], 
-    #                               mode='test', camera=args.camera)
-    # indices_50k =np.load(os.path.join(os.environ["HOME"],'datasets/id_1_criterion_Max_SSD_num_labels_50000.npy'))
-    # dataset_file = os.path.join(os.environ["HOME"],f'datasets/largeset}')
     if args.dataset_root_sql == args.dataset_root_img:
         dataset_train = build_nvdataset_large(dataset_root=[args.dataset_root_sql,  args.dataset_root_img],
                                         mode='train', camera=args.camera)
@@ -296,14 +263,6 @@ def main(args):
                     'args': args,
                 }, checkpoint_path)
 
-        # test_stats, coco_evaluator = evaluate_nvdata(
-        #     model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir
-        # )
-
-        # log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-        #              **{f'test_{k}': v for k, v in test_stats.items()},
-        #              'epoch': epoch,
-        #              'n_parameters': n_parameters}
 
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                      'epoch': epoch,
@@ -313,16 +272,6 @@ def main(args):
             with (output_dir / "log.txt").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
 
-            # for evaluation logs
-            # if coco_evaluator is not None:
-            #     (output_dir / 'eval').mkdir(exist_ok=True)
-            #     if "bbox" in coco_evaluator.coco_eval:
-            #         filenames = ['latest.pth']
-            #         if epoch % 50 == 0:
-            #             filenames.append(f'{epoch:03}.pth')
-            #         for name in filenames:
-            #             torch.save(coco_evaluator.coco_eval["bbox"].eval,
-            #                        output_dir / "eval" / name)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
