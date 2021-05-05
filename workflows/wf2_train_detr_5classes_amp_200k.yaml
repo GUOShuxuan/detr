@@ -11,7 +11,7 @@ anchor-base: &DEFAULTS
   cache: disable
 
 tasks:
-- name: detr-train-200k-autonet-nopretrain-150-2
+- name: detr-train-200k-amp-bs16
   <<: *DEFAULTS
   inputs:
   - volume:
@@ -36,8 +36,7 @@ tasks:
     - pipefail
     - -c
     - python -m torch.distributed.launch --nproc_per_node=8 --master_port=-27000
-      --use_env sandbox/williamz/detr/main_5classes
-      --backbone autonet
+      --use_env sandbox/williamz/detr/main_amp
       --num_queries 100
       --epochs 150
       --lr_drop 100
@@ -45,10 +44,10 @@ tasks:
       --dataset_root_img {{input}}/drivenet_2
       --dataset_root_test {{input}}/dataset
       --output_dir {{output}}/out
-      --batch_size 1
-      --num_workers 2
+      --batch_size 16
+      --num_workers 16
       --camera forward_center
-      --auto_checkpoint None
+      --amp
   workerPool: train 
   group: all
 

@@ -11,7 +11,7 @@ anchor-base: &DEFAULTS
   cache: disable
 
 tasks:
-- name: detr-train-200k-autonet-pretrain-150
+- name: detr-train-200k-autonet-nopretrain-150
   <<: *DEFAULTS
   inputs:
   - volume:

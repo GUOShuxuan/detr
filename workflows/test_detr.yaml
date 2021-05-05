@@ -9,7 +9,7 @@ defaults:
   inputs:
     volumes:
       - name: train-outputs
-        version: 0502013c-9206-4553-ac67-5d4d08530b2d
+        version: ecc10c29-b753-49dd-b364-55fe62b73e82
         mountPath: /model
       - name: detection-f-US-KPI
         version: 2020-06-03-14-33-5dd3
@@ -50,7 +50,7 @@ tasks:
     --dataset_root_sql /drivenet_1
     --dataset_root_test /dataset
     --resume /model/
-    --camera full
+    --camera forward_center
     --eval "
   outputs:
     volumes:

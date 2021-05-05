@@ -1,0 +1,67 @@
+version: 2
+schedule: '@once'
+taskFailAction: stop-branch
+fail: any-job
+
+# Defaults.
+anchor-base: &DEFAULTS
+  # image: bazel/sandbox/williamz/detr/docker:image
+  local_image: bazel/sandbox/williamz/detr/docker:image
+  group: all
+  cache: disable
+
+tasks:
+- name: detr-test-200k-autonet-pretrain
+  <<: *DEFAULTS
+  inputs:
+  - volume:
+      name: split-outputs
+      version: 8493af65-a8ff-5489-b876-d2695b855014
+    prefix: /drivenet_1
+  - volume:
+      name: d3l-detection-f-train
+      version: 2020-03-10-16-13-7945
+    prefix: /drivenet_2
+  # aotonet nopretrained 200k
+  # ai-infra-workflow-specuys41hwm-zkcvo/2021.03.05-1051-237afe4quu8fw/detr-train-200k-autonet-nopretrain-150
+  # - workflow: ai-infra-workflow-specuys41hwm-zkcvo
+  #   run: 2021.03.05-1051-237afe4quu8fw
+  #   task: detr-train-200k-autonet-nopretrain-150
+  #   prefix: /model
+  # aotonet pretrained 200k
+  # ai-infra-workflow-specwi33shm6-ot5v3/2021.03.05-1051-0t7w4dynqlne1/detr-train-200k-autonet-pretrain-150
+  - workflow: ai-infra-workflow-specwi33shm6-ot5v3
+    run: 2021.03.05-1051-0t7w4dynqlne1
+    task: detr-train-200k-autonet-pretrain-150
+    prefix: /model
+  - volume:
+      name: detection-f-US-KPI
+      version: 2020-06-03-14-33-5dd3
+    prefix: /dataset
+  command: /bin/bash 
+  args: 
+    - -euxo
+    - pipefail
+    - -c
+    - sandbox/williamz/detr/eval_5classes
+      --num_queries 100
+      --backbone autonet
+      --dataset_root_test {{input}}/dataset
+      --resume {{input}}/model/out/checkpoint.pth
+      --camera forward_center
+      --eval
+  workerPool: test 
+  group: all
+
+workerPools:
+- name: test
+  workers: 1
+  cpu: 8
+  gpu: 1
+  mem: 60G
+  # Make sure we're running on perf node.
+  nodeConstraints:
+    required:
+      nodeType: dgx1v.32gb.norm # cannot be dgx1v.32gb ==> OOM
+# dazel run //sandbox/williamz/detr/workflows:wf2_test_detr_5classes -- -e maglev --remote_registry ngc --resource-share perception-autonet -- --wf2 
+

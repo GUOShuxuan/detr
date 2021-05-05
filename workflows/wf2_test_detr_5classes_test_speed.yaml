@@ -1,0 +1,121 @@
+version: 2
+schedule: '@once'
+taskFailAction: stop-branch
+fail: any-job
+
+# Defaults.
+anchor-base: &DEFAULTS
+  # image: bazel/sandbox/williamz/detr/docker:image
+  local_image: bazel/sandbox/williamz/detr/docker:image
+  group: all
+  cache: disable
+
+tasks:
+- name: detr-test-speed-drivenet
+  <<: *DEFAULTS
+  inputs:
+  - volume:
+      name: split-outputs
+      version: 8493af65-a8ff-5489-b876-d2695b855014
+    prefix: /drivenet_1
+  - volume:
+      name: d3l-detection-f-train
+      version: 2020-03-10-16-13-7945
+    prefix: /drivenet_2
+  #* resnet 150epoch: detr-test-50k-jw
+  # - workflow: ai-infra-workflow-spec6bc5yec5-4g12o
+  #   run: 2021.03.10-1004-2wc9d5p4lds94
+  #   task: detr-train-150epochs-resnet50-pretrain-50k-jw
+  #   prefix: /resnet50_model
+  #* aotonet pretrained 200k
+  # ai-infra-workflow-specwi33shm6-ot5v3/2021.03.05-1051-0t7w4dynqlne1/detr-train-200k-autonet-pretrain-150
+  - workflow: ai-infra-workflow-specwi33shm6-ot5v3
+    run: 2021.03.05-1051-0t7w4dynqlne1
+    task: detr-train-200k-autonet-pretrain-150
+    prefix: /model
+  - volume:
+      name: detection-f-US-KPI
+      version: 2020-06-03-14-33-5dd3
+    prefix: /dataset
+  command: /bin/bash 
+  args: 
+    - -euxo
+    - pipefail
+    - -c
+    - sandbox/williamz/detr/eval_vis
+      --num_queries 100
+      --backbone autonet
+      --dataset_root_test {{input}}/dataset
+      --resume {{input}}/model/out/checkpoint.pth
+      --camera forward_center
+      --eval
+  workerPool: test 
+  group: all
+
+- name: detr-test-speed-resnet
+  <<: *DEFAULTS
+  inputs:
+  - volume:
+      name: split-outputs
+      version: 8493af65-a8ff-5489-b876-d2695b855014
+    prefix: /drivenet_1
+  - volume:
+      name: d3l-detection-f-train
+      version: 2020-03-10-16-13-7945
+    prefix: /drivenet_2
+  #* resnet 150epoch: detr-test-50k-jw
+  - workflow: ai-infra-workflow-spec6bc5yec5-4g12o
+    run: 2021.03.10-1004-2wc9d5p4lds94
+    task: detr-train-150epochs-resnet50-pretrain-50k-jw
+    prefix: /model
+  #* aotonet pretrained 200k
+  # ai-infra-workflow-specwi33shm6-ot5v3/2021.03.05-1051-0t7w4dynqlne1/detr-train-200k-autonet-pretrain-150
+  # - workflow: ai-infra-workflow-specwi33shm6-ot5v3
+  #   run: 2021.03.05-1051-0t7w4dynqlne1
+  #   task: detr-train-200k-autonet-pretrain-150
+  #   prefix: /model
+  - volume:
+      name: detection-f-US-KPI
+      version: 2020-06-03-14-33-5dd3
+    prefix: /dataset
+  command: /bin/bash 
+  args: 
+    - -euxo
+    - pipefail
+    - -c
+    - sandbox/williamz/detr/eval_vis
+      --num_queries 100
+      --backbone resnet50
+      --dataset_root_test {{input}}/dataset
+      --resume {{input}}/model/out/checkpoint.pth
+      --camera forward_center
+      --eval
+  workerPool: test 
+  group: all
+
+workerPools:
+- name: test
+  workers: 1
+  cpu: 8
+  gpu: 1
+  mem: 60G
+  # Make sure we're running on perf node.
+  nodeConstraints:
+    required:
+      nodeType: dgx1v.32gb.norm # cannot be dgx1v.32gb ==> OOM
+# dazel run //sandbox/williamz/detr/workflows:wf2_test_detr_5classes -- -e maglev --remote_registry ngc --resource-share perception-autonet -- --wf2 
+
+# test speed autonet/resnet50 backbone with 3 input sizes: 604, 608, 800
+# backbone  |          input size   |  
+#           |   604  |  608  |  800 | 
+# -------------------------------------
+# Resnet50  |  0.05164901924133301 | 0.05057280206680298 | 0.05508625793457031
+# -------------------------------------
+# Drivenet  |  0.060512753009796146 | 0.05345484781265259 | 0.0953781590461731
+
+# resnet50 | 0.04742225575447082 | 0.04853881001472473|  0.051987474679946896
+
+
+# same machine
+# resnet50 | 0.049859665155410765 | 0.049320579290390014 | 0.05425608587265015
+# drivenet | 0.04913814043998718 | 0.04987744450569153 | 0.09114788961410522

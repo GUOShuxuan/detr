@@ -1,0 +1,58 @@
+version: 2
+schedule: '@once'
+taskFailAction: stop-branch
+fail: any-job
+
+# Defaults.
+anchor-base: &DEFAULTS
+  # image: bazel/sandbox/williamz/detr/docker:image
+  local_image: bazel/sandbox/williamz/detr/docker:image
+  group: all
+  cache: disable
+
+tasks:
+- name: detr-test-amp-150-10classes
+  <<: *DEFAULTS
+  inputs:
+  - volume:
+      name: split-outputs
+      version: 8493af65-a8ff-5489-b876-d2695b855014
+    prefix: /drivenet_1
+  - volume:
+      name: d3l-detection-f-train
+      version: 2020-03-10-16-13-7945
+    prefix: /drivenet_2
+  - volume:
+      name: train-outputs
+      version: ecc10c29-b753-49dd-b364-55fe62b73e82
+    prefix: /model
+  - volume:
+      name: detection-f-US-KPI
+      version: 2020-06-03-14-33-5dd3
+    prefix: /dataset
+  command: /bin/bash 
+  args: 
+    - -euxo
+    - pipefail
+    - -c
+    - sandbox/williamz/detr/eval
+      --num_queries 100
+      --dataset_root_test {{input}}/dataset
+      --resume {{input}}/model/checkpoint.pth
+      --camera forward_center
+      --eval
+  workerPool: test 
+  group: all
+
+workerPools:
+- name: test
+  workers: 1
+  cpu: 8
+  gpu: 1
+  mem: 60G
+  # Make sure we're running on perf node.
+  nodeConstraints:
+    required:
+      nodeType: dgx1v.32gb.norm # cannot be dgx1v.32gb ==> OOM
+# dazel run //sandbox/williamz/detr/workflows:wf2_test_detr -- -e maglev --remote_registry ngc --resource-share perception-autonet -- --wf2 
+

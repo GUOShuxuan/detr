@@ -1,0 +1,93 @@
+version: 2
+schedule: '@once'
+taskFailAction: stop-branch
+fail: any-job
+
+# Defaults.
+anchor-base: &DEFAULTS
+  # image: bazel/sandbox/williamz/detr/docker:image
+  local_image: bazel/sandbox/williamz/detr/docker:image
+  group: all
+  cache: disable
+
+tasks:
+- name: detr-test-550k
+  <<: *DEFAULTS
+  inputs:
+  # - volume:
+  #     name: split-outputs
+  #     version: 8493af65-a8ff-5489-b876-d2695b855014
+  #   prefix: /drivenet_1
+  # - volume:
+  #     name: d3l-detection-f-train
+  #     version: 2020-03-10-16-13-7945
+  #   prefix: /drivenet_2
+  # 550k: 394h49m45s
+  # ai-infra-workflow-specbhgwymvm-req5a/2021.03.10-1532-33wnp4ib03e5s/detr-train-150epochs-resnet50-pretrain-550k
+  - workflow: ai-infra-workflow-specbhgwymvm-req5a
+    run: 2021.03.10-1532-33wnp4ib03e5s
+    task: detr-train-150epochs-resnet50-pretrain-550k
+    prefix: /model
+  # 500k: 361h58m25s
+  # ai-infra-workflow-specjq22i81j-vu61e/2021.03.10-1517-2jiv10u0n3n8b/detr-train-150epochs-resnet50-pretrain-500k
+  # - workflow: ai-infra-workflow-specjq22i81j-vu61e
+  #   run: 2021.03.10-1517-2jiv10u0n3n8b
+  #   task: detr-train-150epochs-resnet50-pretrain-500k
+  #   prefix: /model
+  # bs=8 with amp
+  # ai-infra-workflow-spec9y0qgpsz-jh4t0/2021.03.18-1946-00okss9frdwca/detr-train-200k-amp-bs8
+  # - workflow: ai-infra-workflow-spec9y0qgpsz-jh4t0
+  #   run: 2021.03.18-1946-00okss9frdwca
+  #   task: detr-train-200k-amp-bs8
+  #   prefix: /model'
+  # 400k
+  # ai-infra-workflow-spec0amfvt5b-gs9na/2021.03.10-1456-3f12dc5s17xjm/detr-train-150epochs-resnet50-pretrain-400k
+  # - workflow: ai-infra-workflow-spec0amfvt5b-gs9na
+  #   run: 2021.03.10-1456-3f12dc5s17xjm
+  #   task: detr-train-150epochs-resnet50-pretrain-400k
+  #   prefix: /model
+  # 300k
+  # - workflow: ai-infra-workflow-specojdcavmg-25rnc
+  #   run: 2021.03.05-1144-2ks21lfb2k3oo
+  #   task: detr-train-150epochs-resnet50-pretrain-300k
+  #   prefix: /model
+  # detr-test-50k-jw-300
+  # - workflow: ai-infra-workflow-spec9xdpo3nl-x30vp
+  #   run: 2021.03.10-1132-2tv0x3d7tgqcg
+  #   task: detr-train-300epochs-resnet50-pretrain-50k-jw
+  #   prefix: /model
+  # 150epoch: detr-test-50k-jw
+  # - workflow: ai-infra-workflow-spec6bc5yec5-4g12o
+  #   run: 2021.03.10-1004-2wc9d5p4lds94
+  #   task: detr-train-150epochs-resnet50-pretrain-50k-jw
+  #   prefix: /model
+  - volume:
+      name: detection-f-US-KPI
+      version: 2020-06-03-14-33-5dd3
+    prefix: /dataset
+  command: /bin/bash 
+  args: 
+    - -euxo
+    - pipefail
+    - -c
+    - sandbox/williamz/detr/eval_5classes
+      --num_queries 100
+      --dataset_root_test {{input}}/dataset
+      --resume {{input}}/model/out/checkpoint.pth
+      --camera forward_center
+      --eval
+  workerPool: test 
+  group: all
+
+workerPools:
+- name: test
+  workers: 1
+  cpu: 8
+  gpu: 1
+  mem: 60G
+  # Make sure we're running on perf node.
+  nodeConstraints:
+    required:
+      nodeType: dgx1v.32gb.norm # cannot be dgx1v.32gb ==> OOM
+# dazel run //sandbox/williamz/detr/workflows:wf2_test_detr_5classes -- -e maglev --remote_registry ngc --resource-share perception-autonet -- --wf2 
+

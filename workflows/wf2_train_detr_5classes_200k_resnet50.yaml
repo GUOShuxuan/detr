@@ -11,7 +11,7 @@ anchor-base: &DEFAULTS
   cache: disable
 
 tasks:
-- name: detr-train-200k-autonet-nopretrain-150-2
+- name: detr-train-200k-resnet50-pretrained
   <<: *DEFAULTS
   inputs:
   - volume:
@@ -37,7 +37,7 @@ tasks:
     - -c
     - python -m torch.distributed.launch --nproc_per_node=8 --master_port=-27000
       --use_env sandbox/williamz/detr/main_5classes
-      --backbone autonet
+      --backbone resnet50
       --num_queries 100
       --epochs 150
       --lr_drop 100
@@ -48,7 +48,6 @@ tasks:
       --batch_size 1
       --num_workers 2
       --camera forward_center
-      --auto_checkpoint None
   workerPool: train 
   group: all
 

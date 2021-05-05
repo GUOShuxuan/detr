@@ -11,9 +11,48 @@ anchor-base: &DEFAULTS
   cache: disable
 
 tasks:
-- name: detr-train-200k-autonet-nopretrain-150-2
+- name: detr-train-150epochs-resnet50-pretrain-800k
   <<: *DEFAULTS
   inputs:
+  - volume:
+      name: detection-f-with-hazards
+      version: 2020-06-04-08-59-d1a8
+    prefix: /detection-f
+  - volume:
+      name: detection-f-diverse-US
+      version: 2020-06-03-14-33-c531
+    prefix: /detection-f-diverse-US
+  - volume:
+      name: detection-f-ppl-cyclist-120
+      version: 2020-06-03-14-33-a719
+    prefix: /detection-f-ppl-cyclist-120
+  - volume:
+      name: detection-f-vru-at-night
+      version: 2020-06-03-14-33-afec
+    prefix: /detection-f-vru-at-night
+  - volume:
+      name: detection-f-vru-at-night-al
+      version: 2020-06-03-14-33-4703
+    prefix: /detection-f-vru-at-night-al
+  - volume:
+      name: detection-f-vru-night
+      version: 2020-06-03-14-33-6c09
+    prefix: /detection-f-vru-night
+  - volume:
+      name: detection-f-US-KPI
+      version: 2020-06-03-14-33-5dd3
+    prefix: /dataset
+
+  - volume:
+      name: detection-f-japan
+      version: 2020-06-03-14-33-8356
+    prefix: /detection-f-japan
+
+  - volume:
+      name: detection-f-vru-closeup
+      version: 2020-06-03-14-33-e593
+    prefix: /detection-f-vru-closeup
+
   - volume:
       name: split-outputs
       version: 8493af65-a8ff-5489-b876-d2695b855014
@@ -22,14 +61,7 @@ tasks:
       name: d3l-detection-f-train
       version: 2020-03-10-16-13-7945
     prefix: /drivenet_2
-  - volume:
-      name: train-outputs
-      version: de4ff57e-3a95-44d1-bc06-a53be35ef8be
-    prefix: /labeled_dir
-  - volume:
-      name: detection-f-US-KPI
-      version: 2020-06-03-14-33-5dd3
-    prefix: /dataset
+
   command: /bin/bash 
   args: 
     - -euxo
@@ -37,16 +69,25 @@ tasks:
     - -c
     - python -m torch.distributed.launch --nproc_per_node=8 --master_port=-27000
       --use_env sandbox/williamz/detr/main_5classes
-      --backbone autonet
+      --backbone resnet50
       --num_queries 100
       --epochs 150
       --lr_drop 100
-      --dataset_root_sql {{input}}/drivenet_1
-      --dataset_root_img {{input}}/drivenet_2
+      --dataset_root_sql {{input}}/detection-f
+      --dataset_root_img {{input}}/detection-f
       --dataset_root_test {{input}}/dataset
+      --dataset_root_sql_3 {{input}}/detection-f-diverse-US
+      --dataset_root_sql_4 {{input}}/detection-f-ppl-cyclist-120
+      --dataset_root_sql_5 {{input}}/detection-f-vru-at-night
+      --dataset_root_sql_6 {{input}}/detection-f-vru-at-night-al
+      --dataset_root_sql_7 {{input}}/detection-f-vru-night
+      --dataset_root_sql_2 {{input}}/detection-f-japan
+      --dataset_root_sql_8 {{input}}/detection-f-vru-closeup
+      --dataset_root_sql_0 {{input}}/drivenet_1
+      --dataset_root_img_0 {{input}}/drivenet_2
       --output_dir {{output}}/out
-      --batch_size 1
-      --num_workers 2
+      --batch_size 4
+      --num_workers 4
       --camera forward_center
       --auto_checkpoint None
   workerPool: train 
@@ -64,7 +105,7 @@ workerPools:
       nodeType: dgx1v.32gb.norm # cannot be dgx1v.32gb ==> OOM
 
 # with local_image
-# dazel run //sandbox/williamz/detr/workflows:wf2_train_detr_5classes -- -e maglev --remote_registry ngc --resource-share perception-autonet -- --wf2 --multi_gpu_mode none
+# dazel run //sandbox/williamz/detr/workflows:wf2_train_detr_5classes_resnet50_mk -- -e maglev --remote_registry ngc --resource-share perception-autonet -- --wf2 --multi_gpu_mode none
 
 # with image: not local_image: 
   #  maglev workflows2 run -f sandbox/williamz/detr/workflows/wf2_train_detr_5classes.yaml --local
@@ -100,3 +141,4 @@ workerPools:
     #   --batch_size 2
     #   --num_workers 2
     #   --camera forward_center
+  
