@@ -45,7 +45,7 @@ tasks:
       --dataset_root_img {{input}}/drivenet_2
       --dataset_root_test {{input}}/dataset
       --output_dir {{output}}/out
-      --batch_size 1
+      --batch_size 2
       --num_workers 2
       --camera forward_center
   workerPool: train 
